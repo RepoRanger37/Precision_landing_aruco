@@ -24,12 +24,12 @@ public:
   : Node("aruco_detector_node")
   {
     image_sub_ = image_transport::create_subscription(
-      this, "/world/aruco/model/x500_mono_cam_down_0/link/camera_link/sensor/imager/image",
+      this, "/camera",
       std::bind(&ArucoDetectorNode::imageCallback, this, std::placeholders::_1),
       "raw");
 
     camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-      "/world/aruco/model/x500_mono_cam_down_0/link/camera_link/sensor/imager/camera_info", 10,
+      "/camera_info", 10,
       std::bind(&ArucoDetectorNode::cameraInfoCallback, this, std::placeholders::_1));
 
     image_pub_ = image_transport::create_publisher(this, "/image_proc");
