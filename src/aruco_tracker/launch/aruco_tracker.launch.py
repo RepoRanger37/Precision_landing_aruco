@@ -19,12 +19,12 @@ def generate_launch_description():
         ),
         # Aruco tracker node
         Node(
-            package='ark',
-            executable='aruco',
-            name='aruco',
+            package='aruco_tracker',
+            executable='aruco_tracker',
+            name='aruco_tracker',
             output='screen',
             parameters=[
-                PathJoinSubstitution([FindPackageShare('ark'), 'cfg', 'params.yaml'])
+                PathJoinSubstitution([FindPackageShare('aruco_tracker'), 'cfg', 'params.yaml'])
             ]
         ),
     ])
