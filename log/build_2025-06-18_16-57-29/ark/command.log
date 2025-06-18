@@ -1,1 +1,0 @@
-Invoking command in '/home/haveli/Precision_landing_aruco/build/ark': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble /usr/bin/cmake /home/haveli/Precision_landing_aruco/src/ark -DCMAKE_INSTALL_PREFIX=/home/haveli/Precision_landing_aruco/install/ark
