@@ -1,0 +1,97 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-0cca4210a0efab87326f.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4
+					]
+				}
+			],
+			"name" : "",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "ark",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ark_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ark_uninstall-d4201e6debbea09d1ca4.json",
+					"name" : "ark_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "aruco::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-aruco-5f96124c31f99f0de64d.json",
+					"name" : "aruco",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "cam::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cam-aa03e1692072fe131c57.json",
+					"name" : "cam",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "fb::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-fb-8a4441aaaa608de25c7d.json",
+					"name" : "fb",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-de3c4c794a5936b18235.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/haveli/Precision_landing_aruco/build/ark",
+		"source" : "/home/haveli/Precision_landing_aruco/src/ark"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

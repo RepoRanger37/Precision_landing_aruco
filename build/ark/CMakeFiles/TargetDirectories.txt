@@ -1,0 +1,12 @@
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/uninstall.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/ark_uninstall.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/cam.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/aruco.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/fb.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/test.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/edit_cache.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/rebuild_cache.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/list_install_components.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/install.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/install/local.dir
+/home/haveli/Precision_landing_aruco/build/ark/CMakeFiles/install/strip.dir

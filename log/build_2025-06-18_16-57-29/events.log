@@ -1,0 +1,128 @@
+[0.000000] (-) TimerEvent: {}
+[0.000396] (ark) JobQueued: {'identifier': 'ark', 'dependencies': OrderedDict()}
+[0.000542] (precision_land) JobQueued: {'identifier': 'precision_land', 'dependencies': OrderedDict()}
+[0.000558] (ark) JobStarted: {'identifier': 'ark'}
+[0.004940] (precision_land) JobStarted: {'identifier': 'precision_land'}
+[0.007944] (ark) JobProgress: {'identifier': 'ark', 'progress': 'cmake'}
+[0.008294] (ark) Command: {'cmd': ['/usr/bin/cmake', '/home/haveli/Precision_landing_aruco/src/ark', '-DCMAKE_INSTALL_PREFIX=/home/haveli/Precision_landing_aruco/install/ark'], 'cwd': '/home/haveli/Precision_landing_aruco/build/ark', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('LANGUAGE', 'en_IN:en'), ('USER', 'haveli'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/usr/local/lib:/usr/local/lib:/usr/local/lib:/usr/local/lib:/home/haveli/microros_ws/install/micro_ros_agent/lib:/home/haveli/microros_ws/install/micro_ros_msgs/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('HOME', '/home/haveli'), ('OLDPWD', '/home/haveli'), ('DESKTOP_SESSION', 'ubuntu'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '11818'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('COLCON_PREFIX_PATH', '/home/haveli/Camera_ros2/install:/home/haveli/microros_ws/install'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'haveli'), ('_', '/usr/bin/colcon'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'haveli'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/opt/gcc-arm-none-eabi-9-2020-q2-update/bin:/home/haveli/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/haveli-B450M-DS3H-WIFI:@/tmp/.ICE-unix/11007,unix/haveli-B450M-DS3H-WIFI:/tmp/.ICE-unix/11007'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/076d41a4_6930_4b1e_8dfb_bc6ff4104617'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.121'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/haveli/Camera_ros2/install/camera_ros2:/home/haveli/microros_ws/install/micro_ros_setup:/home/haveli/microros_ws/install/micro_ros_agent:/home/haveli/microros_ws/install/micro_ros_msgs:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/haveli/Precision_landing_aruco/build/ark'), ('LC_ALL', 'en_US.UTF-8'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/haveli/microros_ws/install/micro_ros_msgs/local/lib/python3.10/dist-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/haveli/Camera_ros2/install/camera_ros2:/home/haveli/microros_ws/install/micro_ros_setup:/home/haveli/microros_ws/install/micro_ros_agent:/home/haveli/microros_ws/install/micro_ros_msgs:/opt/ros/humble')]), 'shell': False}
+[0.010803] (precision_land) JobProgress: {'identifier': 'precision_land', 'progress': 'cmake'}
+[0.011550] (precision_land) Command: {'cmd': ['/usr/bin/cmake', '/home/haveli/Precision_landing_aruco/src/precision_land', '-DCMAKE_INSTALL_PREFIX=/home/haveli/Precision_landing_aruco/install/precision_land'], 'cwd': '/home/haveli/Precision_landing_aruco/build/precision_land', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('LANGUAGE', 'en_IN:en'), ('USER', 'haveli'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/usr/local/lib:/usr/local/lib:/usr/local/lib:/usr/local/lib:/home/haveli/microros_ws/install/micro_ros_agent/lib:/home/haveli/microros_ws/install/micro_ros_msgs/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib'), ('HOME', '/home/haveli'), ('OLDPWD', '/home/haveli'), ('DESKTOP_SESSION', 'ubuntu'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('SYSTEMD_EXEC_PID', '11818'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLORTERM', 'truecolor'), ('COLCON_PREFIX_PATH', '/home/haveli/Camera_ros2/install:/home/haveli/microros_ws/install'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'haveli'), ('_', '/usr/bin/colcon'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'haveli'), ('TERM', 'xterm-256color'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/opt/gcc-arm-none-eabi-9-2020-q2-update/bin:/home/haveli/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/haveli-B450M-DS3H-WIFI:@/tmp/.ICE-unix/11007,unix/haveli-B450M-DS3H-WIFI:/tmp/.ICE-unix/11007'), ('XDG_MENU_PREFIX', 'gnome-'), ('GNOME_TERMINAL_SCREEN', '/org/gnome/Terminal/screen/076d41a4_6930_4b1e_8dfb_bc6ff4104617'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('DISPLAY', ':1'), ('LANG', 'en_US.UTF-8'), ('XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1000/gdm/Xauthority'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('GNOME_TERMINAL_SERVICE', ':1.121'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1000/keyring/ssh'), ('AMENT_PREFIX_PATH', '/home/haveli/Camera_ros2/install/camera_ros2:/home/haveli/microros_ws/install/micro_ros_setup:/home/haveli/microros_ws/install/micro_ros_agent:/home/haveli/microros_ws/install/micro_ros_msgs:/opt/ros/humble'), ('SHELL', '/bin/bash'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('GPG_AGENT_INFO', '/run/user/1000/gnupg/S.gpg-agent:0:1'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/haveli/Precision_landing_aruco/build/precision_land'), ('LC_ALL', 'en_US.UTF-8'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/haveli/microros_ws/install/micro_ros_msgs/local/lib/python3.10/dist-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('COLCON', '1'), ('VTE_VERSION', '6800'), ('CMAKE_PREFIX_PATH', '/home/haveli/Camera_ros2/install/camera_ros2:/home/haveli/microros_ws/install/micro_ros_setup:/home/haveli/microros_ws/install/micro_ros_agent:/home/haveli/microros_ws/install/micro_ros_msgs:/opt/ros/humble')]), 'shell': False}
+[0.056421] (ark) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.058856] (precision_land) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.099859] (-) TimerEvent: {}
+[0.106482] (precision_land) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.106924] (ark) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.113784] (ark) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.115629] (precision_land) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.173311] (ark) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.176651] (precision_land) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.179642] (ark) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.179855] (ark) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.180173] (ark) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.182721] (ark) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.182961] (precision_land) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.183179] (precision_land) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.183494] (precision_land) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.185949] (precision_land) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.199928] (-) TimerEvent: {}
+[0.251312] (ark) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.255502] (precision_land) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.257715] (ark) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.257960] (ark) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.258337] (ark) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.261134] (ark) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[0.268260] (precision_land) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.268728] (precision_land) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.269487] (precision_land) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.274346] (precision_land) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[0.300011] (-) TimerEvent: {}
+[0.381380] (ark) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[0.400066] (-) TimerEvent: {}
+[0.402981] (precision_land) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[0.476202] (ark) StdoutLine: {'line': b'-- Found rclcpp: 16.0.12 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[0.496772] (precision_land) StdoutLine: {'line': b'-- Found rclcpp: 16.0.12 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[0.500124] (-) TimerEvent: {}
+[0.529646] (ark) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.6 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[0.534059] (ark) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.6 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[0.541087] (ark) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.6 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[0.550046] (precision_land) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.6 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[0.551308] (ark) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[0.554499] (precision_land) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.6 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[0.561582] (precision_land) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.6 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[0.565023] (ark) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[0.571821] (precision_land) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[0.585441] (precision_land) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[0.600191] (-) TimerEvent: {}
+[0.602205] (ark) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[0.604524] (ark) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.7 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[0.622517] (precision_land) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[0.624811] (precision_land) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.7 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[0.693175] (ark) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[0.700290] (-) TimerEvent: {}
+[0.715880] (precision_land) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[0.721220] (ark) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[0.742671] (precision_land) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[0.765213] (ark) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[0.772899] (ark) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[0.784542] (precision_land) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[0.792113] (precision_land) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[0.800358] (-) TimerEvent: {}
+[0.837418] (ark) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[0.837754] (ark) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[0.856614] (precision_land) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[0.856956] (precision_land) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[0.900474] (-) TimerEvent: {}
+[0.903766] (ark) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[0.904711] (ark) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[0.920031] (precision_land) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[0.920929] (precision_land) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[0.947879] (ark) StdoutLine: {'line': b'-- Found sensor_msgs: 4.8.0 (/opt/ros/humble/share/sensor_msgs/cmake)\n'}
+[0.963277] (precision_land) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[0.971194] (precision_land) StdoutLine: {'line': b'-- Found Eigen3: TRUE (found version "3.4.0") \n'}
+[0.973101] (ark) StdoutLine: {'line': b'-- Found cv_bridge: 3.2.1 (/opt/ros/humble/share/cv_bridge/cmake)\n'}
+[0.983226] (precision_land) StderrLine: {'line': b'\x1b[31mCMake Error at CMakeLists.txt:13 (find_package):\n'}
+[0.983341] (precision_land) StderrLine: {'line': b'  By not providing "Findpx4_ros2_cpp.cmake" in CMAKE_MODULE_PATH this project\n'}
+[0.983388] (precision_land) StderrLine: {'line': b'  has asked CMake to find a package configuration file provided by\n'}
+[0.983430] (precision_land) StderrLine: {'line': b'  "px4_ros2_cpp", but CMake did not find one.\n'}
+[0.983470] (precision_land) StderrLine: {'line': b'\n'}
+[0.983511] (precision_land) StderrLine: {'line': b'  Could not find a package configuration file provided by "px4_ros2_cpp" with\n'}
+[0.983551] (precision_land) StderrLine: {'line': b'  any of the following names:\n'}
+[0.983591] (precision_land) StderrLine: {'line': b'\n'}
+[0.983631] (precision_land) StderrLine: {'line': b'    px4_ros2_cppConfig.cmake\n'}
+[0.983670] (precision_land) StderrLine: {'line': b'    px4_ros2_cpp-config.cmake\n'}
+[0.983710] (precision_land) StderrLine: {'line': b'\n'}
+[0.983750] (precision_land) StderrLine: {'line': b'  Add the installation prefix of "px4_ros2_cpp" to CMAKE_PREFIX_PATH or set\n'}
+[0.983790] (precision_land) StderrLine: {'line': b'  "px4_ros2_cpp_DIR" to a directory containing one of the above files.  If\n'}
+[0.983830] (precision_land) StderrLine: {'line': b'  "px4_ros2_cpp" provides a separate development package or SDK, be sure it\n'}
+[0.983870] (precision_land) StderrLine: {'line': b'  has been installed.\n'}
+[0.983910] (precision_land) StderrLine: {'line': b'\n'}
+[0.983949] (precision_land) StderrLine: {'line': b'\x1b[0m\n'}
+[0.983989] (precision_land) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[0.984033] (precision_land) StdoutLine: {'line': b'See also "/home/haveli/Precision_landing_aruco/build/precision_land/CMakeFiles/CMakeOutput.log".\n'}
+[0.984076] (ark) StdoutLine: {'line': b'-- Found image_transport: 3.1.11 (/opt/ros/humble/share/image_transport/cmake)\n'}
+[0.990638] (precision_land) CommandEnded: {'returncode': 1}
+[1.000531] (-) TimerEvent: {}
+[1.011226] (precision_land) JobEnded: {'identifier': 'precision_land', 'rc': 1}
+[1.018828] (ark) StdoutLine: {'line': b'-- Found OpenCV: /usr/local (found version "4.10.0") \n'}
+[1.020375] (ark) StdoutLine: {'line': b'-- Found tf2: 0.25.13 (/opt/ros/humble/share/tf2/cmake)\n'}
+[1.024097] (ark) StdoutLine: {'line': b'-- Found tf2_geometry_msgs: 0.25.13 (/opt/ros/humble/share/tf2_geometry_msgs/cmake)\n'}
+[1.038645] (ark) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.1.1 (/opt/ros/humble/share/eigen3_cmake_module/cmake)\n'}
+[1.039653] (ark) StdoutLine: {'line': b'-- Found Eigen3: TRUE (found version "3.4.0") \n'}
+[1.039788] (ark) StdoutLine: {'line': b'-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target\n'}
+[1.100606] (-) TimerEvent: {}
+[1.117269] (ark) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.12 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[1.180195] (ark) StdoutLine: {'line': b"-- Added test 'cppcheck' to perform static code analysis on C / C++ code\n"}
+[1.180395] (ark) StdoutLine: {'line': b'-- Configured cppcheck include dirs: \n'}
+[1.180456] (ark) StdoutLine: {'line': b'-- Configured cppcheck exclude dirs and/or files: \n'}
+[1.180905] (ark) StdoutLine: {'line': b"-- Added test 'flake8' to check Python code syntax and style conventions\n"}
+[1.181485] (ark) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[1.181955] (ark) StdoutLine: {'line': b"-- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257\n"}
+[1.183163] (ark) StdoutLine: {'line': b"-- Added test 'uncrustify' to check C / C++ code style\n"}
+[1.183230] (ark) StdoutLine: {'line': b'-- Configured uncrustify additional arguments: \n'}
+[1.183649] (ark) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[1.184780] (ark) StdoutLine: {'line': b'-- Configuring done\n'}
+[1.200673] (-) TimerEvent: {}
+[1.207484] (ark) StdoutLine: {'line': b'-- Generating done\n'}
+[1.215143] (ark) StdoutLine: {'line': b'-- Build files have been written to: /home/haveli/Precision_landing_aruco/build/ark\n'}
+[1.224287] (ark) JobEnded: {'identifier': 'ark', 'rc': 'SIGINT'}
+[1.234718] (-) EventReactorShutdown: {}

@@ -22,6 +22,12 @@ def generate_launch_description():
             executable='cam',
             name='cam',
             output='screen',   
-        )
+        ),
+        Node(
+            package='ark',
+            executable='fb',
+            name='Buffer',
+            output='screen',   
+        ),
     ])
 

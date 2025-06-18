@@ -100,8 +100,8 @@ private:
         camera_info_pub_->publish(std::move(camera_info));
 
         // Optional: Show the flipped image in a window for debugging
-        cv::imshow("Flipped Webcam Output", flipped_frame);
-        cv::waitKey(1);
+        //cv::imshow("Flipped Webcam Output", flipped_frame);
+        //cv::waitKey(1);
     }
 
     // Camera parameters

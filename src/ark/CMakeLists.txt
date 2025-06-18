@@ -33,6 +33,9 @@ ament_target_dependencies(aruco
   tf2_geometry_msgs
 )
 
+add_executable(fb src/buffer.cpp)
+ament_target_dependencies(fb rclcpp sensor_msgs OpenCV cv_bridge)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -48,6 +51,7 @@ endif()
 # Install executables
 install(TARGETS aruco
 		cam
+		fb
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch
