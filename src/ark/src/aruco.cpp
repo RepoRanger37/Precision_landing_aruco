@@ -31,8 +31,8 @@ public:
         }
 
         // Set camera resolution (adjust if needed)
-        cap_.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-        cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+        cap_.set(cv::CAP_PROP_FRAME_WIDTH, 704);
+        cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 432);
 
         // Create timer for publishing frames
         timer_ = this->create_wall_timer(
