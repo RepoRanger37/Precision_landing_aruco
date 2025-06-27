@@ -55,7 +55,7 @@ private:
         close(fb);
         
         count = (count + 1) % 10;
-        RCLCPP_INFO(this->get_logger(), "Wrote %dx%d image %d", width_, height_, count);
+       // RCLCPP_INFO(this->get_logger(), "Wrote %dx%d image %d", width_, height_, count);
     }
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr buffer_sub;
