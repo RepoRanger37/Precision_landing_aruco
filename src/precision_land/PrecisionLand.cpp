@@ -32,11 +32,11 @@ PrecisionLand::PrecisionLand(rclcpp::Node& node)
 
 void PrecisionLand::loadParameters()
 {
-	_node.declare_parameter<float>("descent_vel", 1.0);
-	_node.declare_parameter<float>("vel_p_gain", 1.5);
+	_node.declare_parameter<float>("descent_vel", 0.2);
+	_node.declare_parameter<float>("vel_p_gain", 1.0);
 	_node.declare_parameter<float>("vel_i_gain", 0.0);
-	_node.declare_parameter<float>("max_velocity", 3.0);
-	_node.declare_parameter<float>("target_timeout", 3.0);
+	_node.declare_parameter<float>("max_velocity", 0.5);
+	_node.declare_parameter<float>("target_timeout", 10.0);
 	_node.declare_parameter<float>("delta_position", 0.25);
 	_node.declare_parameter<float>("delta_velocity", 0.25);
 
