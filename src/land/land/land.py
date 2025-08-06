@@ -12,7 +12,7 @@ class LandingTargetBridge(Node):
         super().__init__('landing_target_bridge')
         
         # ROS parameters
-        self.declare_parameter('device', '/dev/ttyACM1')
+        self.declare_parameter('device', '/dev/ttyACM0')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('pose_topic', '/target_pose')
         
