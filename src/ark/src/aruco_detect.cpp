@@ -24,7 +24,7 @@ public:
   : Node("aruco_detector_node")
   {
     // Initialize parameters
-    this->declare_parameter<double>("marker_length", 0.5);
+    this->declare_parameter<double>("marker_length", 0.26);
     this->declare_parameter<std::string>("camera_topic", "/camera");
     this->declare_parameter<std::string>("camera_info_topic", "/camera_info");
     this->declare_parameter<int>("dictionary_id", cv::aruco::DICT_4X4_250);
