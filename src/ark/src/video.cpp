@@ -13,7 +13,7 @@ class CameraRecorder : public rclcpp::Node
 public:
     CameraRecorder() : Node("camera_recorder")
     {
-        std::string output_folder = "/root/Video";
+        std::string output_folder = "/home/pi/Video";
         std::filesystem::create_directories(output_folder);
 
         video_output_dir_ = output_folder;
