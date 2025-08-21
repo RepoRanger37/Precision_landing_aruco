@@ -33,9 +33,6 @@ public:
         // Request 30 FPS
         cap_.set(cv::CAP_PROP_FPS, 30);
 
-        cap_.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-        cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
-
         // Log actual FPS
         double actual_fps = cap_.get(cv::CAP_PROP_FPS);
         RCLCPP_INFO(this->get_logger(), "Camera reports FPS: %.2f", actual_fps);
