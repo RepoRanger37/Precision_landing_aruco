@@ -23,16 +23,22 @@ public:
         camera_info_pub_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("/camera_info", 10);
 
         // Initialize camera
-        cap_.open(0); // Open default camera
+        cap_.open(0, cv::CAP_V4L2);  // Force V4L2 backend// Open default camera
         if (!cap_.isOpened()) {
             RCLCPP_ERROR(this->get_logger(), "Could not open webcam!");
             rclcpp::shutdown();
             return;
         }
 
-        // Set camera resolution (adjust if needed)
-        cap_.set(cv::CAP_PROP_FRAME_WIDTH, 704);
-        cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 432);
+        // Request 30 FPS
+        cap_.set(cv::CAP_PROP_FPS, 30);
+
+        cap_.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
+        cap_.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
+
+        // Log actual FPS
+        double actual_fps = cap_.get(cv::CAP_PROP_FPS);
+        RCLCPP_INFO(this->get_logger(), "Camera reports FPS: %.2f", actual_fps);
 
         // Create timer for publishing frames
         timer_ = this->create_wall_timer(

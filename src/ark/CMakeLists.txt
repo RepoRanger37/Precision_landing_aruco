@@ -36,6 +36,9 @@ ament_target_dependencies(aruco
 add_executable(fb src/buffer.cpp)
 ament_target_dependencies(fb rclcpp sensor_msgs OpenCV cv_bridge)
 
+add_executable(video src/video.cpp)
+ament_target_dependencies(video rclcpp sensor_msgs cv_bridge OpenCV)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -52,6 +55,7 @@ endif()
 install(TARGETS aruco
 		cam
 		fb
+    video
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch
