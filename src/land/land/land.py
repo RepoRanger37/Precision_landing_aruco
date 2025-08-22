@@ -2,9 +2,11 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Float32
 import math
 from pymavlink import mavutil
 import time
+import threading
 from std_msgs.msg import Bool
 from rclpy.qos import qos_profile_sensor_data
 
@@ -32,12 +34,19 @@ class LandingTargetBridge(Node):
 
         # MAVLink connection
         self.get_logger().info(f"Connecting to {device} at {baud} baud")
-        self.vehicle = mavutil.mavlink_connection(device, baud=baud)
-        self.vehicle.wait_heartbeat()
-        self.get_logger().info(f"Heartbeat received from system {self.vehicle.target_system}")
+        try:
+            self.vehicle = mavutil.mavlink_connection(device, baud=baud)
+            self.vehicle.wait_heartbeat(timeout=5)
+            self.get_logger().info(f"Heartbeat received from system {self.vehicle.target_system}")
+        except Exception as e:
+            self.get_logger().error(f"Failed to connect to MAVLink: {str(e)}")
+            raise
 
         # Publisher for landing status
         self.status_pub = self.create_publisher(Bool, '/landing_status', 10)
+        
+        # Publisher for rangefinder distance (simplified to just the distance value)
+        self.rangefinder_pub = self.create_publisher(Float32, '/rf_distance', 10)
 
         # Optionally publish default status
         default_status = Bool()
@@ -53,8 +62,39 @@ class LandingTargetBridge(Node):
         )
         self.get_logger().info(f"Subscribed to {pose_topic}")
 
-        # Timer to poll MAVLink messages
-        self.timer = self.create_timer(0.1, self.poll_mavlink_messages)
+        # Start the MAVLink listener thread
+        self.mavlink_thread = threading.Thread(target=self.mavlink_listener, daemon=True)
+        self.mavlink_thread.start()
+        
+        # Timer for periodic tasks (if needed)
+        self.timer = self.create_timer(1.0, self.periodic_tasks)
+
+    def mavlink_listener(self):
+        """Thread function to listen for MAVLink messages"""
+        self.get_logger().info("Listening for MAVLink messages...")
+        
+        while rclpy.ok():
+            try:
+                # Listen for specific message types with timeout
+                msg = self.vehicle.recv_match(
+                    type=['HEARTBEAT', 'SCALED_RANGEFINDER', 'DISTANCE_SENSOR'], 
+                    blocking=True, 
+                    timeout=1.0
+                )
+                
+                if msg is None:
+                    continue
+                    
+                msg_type = msg.get_type()
+                
+                if msg_type == 'HEARTBEAT':
+                    self.handle_heartbeat(msg)
+                elif msg_type in ['SCALED_RANGEFINDER', 'DISTANCE_SENSOR']:
+                    self.handle_rangefinder(msg)
+                    
+            except Exception as e:
+                self.get_logger().error(f"Error in MAVLink listener: {str(e)}")
+                time.sleep(1)  # Prevent tight loop on error
 
     def handle_heartbeat(self, msg):
         custom_mode = msg.custom_mode
@@ -70,19 +110,34 @@ class LandingTargetBridge(Node):
         ]
         is_flying = not is_landed
 
-        # self.get_logger().info(
-        #     f"[STATUS] Mode: {flight_mode} | {'ARMED' if is_armed else 'DISARMED'} | {'LANDED' if is_landed else 'FLYING'}",
-        #     throttle_duration_sec=2.0
-        # )
-
         # Publish landing status depending on current mode and state
-        msg = Bool()
+        status_msg = Bool()
         if flight_mode == "LAND" and is_flying:
-            msg.data = True
-            self.status_pub.publish(msg)
+            status_msg.data = True
+            self.status_pub.publish(status_msg)
         elif flight_mode == "LAND" and not is_armed:
-            msg.data = False
-            self.status_pub.publish(msg)
+            status_msg.data = False
+            self.status_pub.publish(status_msg)
+
+    def handle_rangefinder(self, msg):
+        """Process rangefinder messages and publish just the distance"""
+        distance_m = 0.0
+        
+        if msg.get_type() == 'SCALED_RANGEFINDER':
+            distance_m = msg.distance / 100.0  # cm to meters
+        elif msg.get_type() == 'DISTANCE_SENSOR':
+            distance_m = msg.current_distance / 100.0  # cm to meters
+        
+        # Create and publish a simple Float32 message with just the distance
+        distance_msg = Float32()
+        distance_msg.data = float(distance_m)
+        self.rangefinder_pub.publish(distance_msg)
+        
+        # Log the distance (throttled to avoid spam)
+        # self.get_logger().info(
+        #     f"Rangefinder distance: {distance_m:.2f} m",
+        #     throttle_duration_sec=1.0
+        # )
 
     def pose_callback(self, msg):
         x_cam = msg.pose.position.x
@@ -103,20 +158,15 @@ class LandingTargetBridge(Node):
                 angle_x, angle_y, distance, 0.0, 0.0
             )
             self.vehicle.mav.send(landing_target_msg)
-            # self.get_logger().info(
-            #     f"Sent LANDING_TARGET: angles=({math.degrees(angle_x):.1f}°, {math.degrees(angle_y):.1f}°) dist={distance:.1f}m",
-            #     throttle_duration_sec=0.1
+            # self.get_logger().debug(
+            #     f"Sent LANDING_TARGET: angles=({math.degrees(angle_x):.1f}°, {math.degrees(angle_y):.1f}°) dist={distance:.1f}m"
             # )
         except Exception as e:
             self.get_logger().error(f"MAVLink send failed: {str(e)}")
 
-    def poll_mavlink_messages(self):
-        msg = self.vehicle.recv_match(blocking=False)
-        if not msg:
-            return
-
-        if msg.get_type() == 'HEARTBEAT':
-            self.handle_heartbeat(msg)
+    def periodic_tasks(self):
+        """Periodic tasks (if any needed)"""
+        pass
 
 def main(args=None):
     rclpy.init(args=args)

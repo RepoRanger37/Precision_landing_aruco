@@ -8,6 +8,7 @@
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "std_msgs/msg/bool.hpp"
+#include "std_msgs/msg/float32.hpp"
 #include "cv_bridge/cv_bridge.h"
 #include "image_transport/image_transport.hpp"
 
@@ -43,6 +44,10 @@ public:
       "/landing_status", 10,
       std::bind(&ArucoDetectorNode::statusCallback, this, std::placeholders::_1));
 
+    rf_distance_sub_ = create_subscription<std_msgs::msg::Float32>(
+      "/rf_distance", 10,
+      std::bind(&ArucoDetectorNode::rfDistanceCallback, this, std::placeholders::_1));
+
     image_pub_ = image_transport::create_publisher(this, "/aruco_detection");
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/target_pose", 10);
 
@@ -51,6 +56,8 @@ public:
 
     camera_info_received_ = false;
     recording_active_ = false;
+    rf_distance_ = 0.0;
+    rf_distance_received_ = false;
 
     RCLCPP_INFO(get_logger(), "Aruco detector node initialized");
   }
@@ -61,6 +68,7 @@ private:
   image_transport::Publisher image_pub_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr status_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr rf_distance_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
 
   // ArUco
@@ -74,6 +82,10 @@ private:
   bool landing_status_;
   bool recording_active_;
   rclcpp::Time start_time_;
+
+  // RF distance
+  float rf_distance_;
+  bool rf_distance_received_;
 
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
     if (!camera_info_received_) {
@@ -100,6 +112,11 @@ private:
     }
   }
 
+  void rfDistanceCallback(const std_msgs::msg::Float32::SharedPtr msg) {
+    rf_distance_ = msg->data;
+    rf_distance_received_ = true;
+  }
+
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
     if (!camera_info_received_) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "Waiting for camera calibration data...");
@@ -119,6 +136,7 @@ private:
     // Detect markers
     cv::Vec3d current_tvec(0, 0, 0);
     bool marker_detected = false;
+    float error_percentage = 0.0f;
 
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
@@ -136,6 +154,13 @@ private:
         if (ids[i] == 0) {
           marker_detected = true;
           current_tvec = tvecs[i];
+
+          // Compute error
+          float z_distance = static_cast<float>(current_tvec[2]);  // meters
+          if (rf_distance_received_ && rf_distance_ > 0.0f) {
+            float error = rf_distance_ - z_distance;
+            error_percentage = (error / rf_distance_) * 100.0f;
+          }
 
           cv::Mat rot;
           cv::Rodrigues(rvecs[i], rot);
@@ -159,7 +184,7 @@ private:
       }
     }
 
-    drawCoordinates(image, current_tvec, marker_detected);
+    drawCoordinates(image, current_tvec, marker_detected, error_percentage);
     drawOverlayText(image);
     drawCrosshair(image);
 
@@ -170,10 +195,9 @@ private:
     image_pub_.publish(out_msg.toImageMsg());
   }
 
-  void drawCoordinates(cv::Mat &image, const cv::Vec3d &tvec, bool detected) {
+  void drawCoordinates(cv::Mat &image, const cv::Vec3d &tvec, bool detected, float error_percent) {
     const double font_scale = 1.0;
     const int thickness = 2;
-    //const int margin = 20;
     const int line_height = 30;
     const cv::Scalar color = detected ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 0, 255);
 
@@ -186,13 +210,19 @@ private:
     oss.str(""); oss << "Z: " << tvec[2] << " m";
     std::string z = oss.str();
 
-    //int baseline = 0;
     int x_pos = image.cols - 220;
     int y_pos = image.rows - 3 * line_height;
 
     cv::putText(image, x, cv::Point(x_pos, y_pos), cv::FONT_HERSHEY_SIMPLEX, font_scale, color, thickness);
     cv::putText(image, y, cv::Point(x_pos, y_pos + line_height), cv::FONT_HERSHEY_SIMPLEX, font_scale, color, thickness);
     cv::putText(image, z, cv::Point(x_pos, y_pos + 2 * line_height), cv::FONT_HERSHEY_SIMPLEX, font_scale, color, thickness);
+
+    // Draw error at bottom-left
+    std::ostringstream error_ss;
+    error_ss << std::fixed << std::setprecision(2);
+    error_ss << "Error: " << (detected && rf_distance_received_ ? error_percent : 0.0f) << " %";
+    std::string error_text = error_ss.str();
+    cv::putText(image, error_text, cv::Point(20, image.rows - 10), cv::FONT_HERSHEY_SIMPLEX, 1.0, color, 2);
   }
 
   void drawOverlayText(cv::Mat &image) {
@@ -257,3 +287,4 @@ int main(int argc, char **argv) {
   rclcpp::shutdown();
   return 0;
 }
+
