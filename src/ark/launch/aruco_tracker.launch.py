@@ -31,7 +31,7 @@ def generate_launch_description():
         ),
         Node(
             package='ark',
-            executable='Video',
+            executable='video',
             name='Recorder',
             output='screen',   
         ),   
