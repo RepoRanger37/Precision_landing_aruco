@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
+
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Bool
 import math
 from pymavlink import mavutil
 import time
 import threading
-from std_msgs.msg import Bool
 from rclpy.qos import qos_profile_sensor_data
 
-# ArduPilot flight modes for reference
 ARDUPILOT_FLIGHT_MODES = {
     0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD", 3: "AUTO", 4: "GUIDED",
     5: "LOITER", 6: "RTL", 7: "CIRCLE", 9: "LAND", 11: "DRIFT", 13: "SPORT",
@@ -24,36 +23,24 @@ class LandingTargetBridge(Node):
         super().__init__('landing_target_bridge')
 
         # ROS2 parameters
-        self.declare_parameter('device', '/dev/ttyACM0')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('pose_topic', '/target_pose')
 
-        device = self.get_parameter('device').value
-        baud = self.get_parameter('baud').value
+        self.baud = self.get_parameter('baud').value
         pose_topic = self.get_parameter('pose_topic').value
 
-        # MAVLink connection
-        self.get_logger().info(f"Connecting to {device} at {baud} baud")
-        try:
-            self.vehicle = mavutil.mavlink_connection(device, baud=baud)
-            self.vehicle.wait_heartbeat(timeout=5)
-            self.get_logger().info(f"Heartbeat received from system {self.vehicle.target_system}")
-        except Exception as e:
-            self.get_logger().error(f"Failed to connect to MAVLink: {str(e)}")
-            raise
+        # Connection state
+        self.vehicle = None
+        self.connected = False
+        self.stop_thread = False
+        self.device = None  # Will be set after connection
 
-        # Publisher for landing status
+        # Publishers
         self.status_pub = self.create_publisher(Bool, '/landing_status', 10)
-        
-        # Publisher for rangefinder distance (simplified to just the distance value)
         self.rangefinder_pub = self.create_publisher(Float32, '/rf_distance', 10)
+        self.status_pub.publish(Bool(data=False))  # default status
 
-        # Optionally publish default status
-        default_status = Bool()
-        default_status.data = False
-        self.status_pub.publish(default_status)
-
-        # Subscriber to target pose
+        # Subscriber to vision pose
         self.subscription = self.create_subscription(
             PoseStamped,
             pose_topic,
@@ -62,39 +49,96 @@ class LandingTargetBridge(Node):
         )
         self.get_logger().info(f"Subscribed to {pose_topic}")
 
-        # Start the MAVLink listener thread
+        # Start MAVLink thread
         self.mavlink_thread = threading.Thread(target=self.mavlink_listener, daemon=True)
         self.mavlink_thread.start()
-        
-        # Timer for periodic tasks (if needed)
+
+        # Optional periodic tasks
         self.timer = self.create_timer(1.0, self.periodic_tasks)
 
-    def mavlink_listener(self):
-        """Thread function to listen for MAVLink messages"""
-        self.get_logger().info("Listening for MAVLink messages...")
-        
-        while rclpy.ok():
-            try:
-                # Listen for specific message types with timeout
-                msg = self.vehicle.recv_match(
-                    type=['HEARTBEAT', 'SCALED_RANGEFINDER', 'DISTANCE_SENSOR'], 
-                    blocking=True, 
-                    timeout=1.0
+    def connect_to_mavlink(self):
+        ports = ["/dev/ttyACM0", "/dev/ttyACM1"]
+        try_limits = {
+            "/dev/ttyACM0": 5,  # initial tries for ACM0
+            "/dev/ttyACM1": 3   # initial tries for ACM1
+        }
+        fallback_try_limit = 3  # subsequent tries after initial attempts
+
+        current_port_index = 0
+        port_attempts = {"/dev/ttyACM0": 0, "/dev/ttyACM1": 0}
+        max_tries_exceeded = False
+
+        while not self.connected and not self.stop_thread:
+            current_port = ports[current_port_index]
+
+            # Determine how many tries to allow this round
+            if port_attempts[current_port] < try_limits[current_port]:
+                max_attempts = try_limits[current_port]
+            else:
+                max_attempts = fallback_try_limit
+
+            for attempt in range(max_attempts):
+                if self.stop_thread or self.connected:
+                    return
+
+                self.get_logger().info(
+                    f"[{current_port}] Attempt {attempt+1}/{max_attempts} at {self.baud} baud..."
                 )
-                
+                try:
+                    self.vehicle = mavutil.mavlink_connection(current_port, baud=self.baud)
+                    self.vehicle.wait_heartbeat(timeout=5)
+                    self.get_logger().info(f"Connected via {current_port}. Heartbeat received.")
+                    self.device = current_port
+                    self.connected = True
+                    self.request_data_streams()
+                    return
+                except Exception as e:
+                    self.get_logger().warn(f"Failed on {current_port}: {e}")
+                    time.sleep(2)
+
+            # Mark this port as attempted
+            port_attempts[current_port] += max_attempts
+            current_port_index = (current_port_index + 1) % len(ports)
+
+    def request_data_streams(self):
+        try:
+            self.vehicle.mav.request_data_stream_send(
+                self.vehicle.target_system,
+                self.vehicle.target_component,
+                mavutil.mavlink.MAV_DATA_STREAM_ALL,
+                2,  # rate in Hz
+                1   # start
+            )
+            self.get_logger().info("Requested data streams from FCU")
+        except Exception as e:
+            self.get_logger().error(f"Failed to request data streams: {str(e)}")
+
+    def mavlink_listener(self):
+        self.get_logger().info("Starting MAVLink listener thread.")
+        while not self.stop_thread and rclpy.ok():
+            if not self.connected:
+                self.connect_to_mavlink()
+                continue
+
+            try:
+                msg = self.vehicle.recv_match(
+                    type=['HEARTBEAT', 'SCALED_RANGEFINDER', 'DISTANCE_SENSOR'],
+                    blocking=True,
+                    timeout=2.0
+                )
                 if msg is None:
                     continue
-                    
+
                 msg_type = msg.get_type()
-                
                 if msg_type == 'HEARTBEAT':
                     self.handle_heartbeat(msg)
                 elif msg_type in ['SCALED_RANGEFINDER', 'DISTANCE_SENSOR']:
                     self.handle_rangefinder(msg)
-                    
+
             except Exception as e:
-                self.get_logger().error(f"Error in MAVLink listener: {str(e)}")
-                time.sleep(1)  # Prevent tight loop on error
+                self.get_logger().warn(f"MAVLink communication lost: {e}. Reconnecting...")
+                self.connected = False
+                time.sleep(2)
 
     def handle_heartbeat(self, msg):
         custom_mode = msg.custom_mode
@@ -110,75 +154,63 @@ class LandingTargetBridge(Node):
         ]
         is_flying = not is_landed
 
-        # Publish landing status depending on current mode and state
         status_msg = Bool()
-        if flight_mode == "LAND" and is_flying:
-            status_msg.data = True
-            self.status_pub.publish(status_msg)
-        elif flight_mode == "LAND" and not is_armed:
-            status_msg.data = False
-            self.status_pub.publish(status_msg)
+        status_msg.data = (flight_mode == "LAND") and is_flying
+        self.status_pub.publish(status_msg)
 
     def handle_rangefinder(self, msg):
-        """Process rangefinder messages and publish just the distance"""
         distance_m = 0.0
-        
         if msg.get_type() == 'SCALED_RANGEFINDER':
-            distance_m = msg.distance / 100.0  # cm to meters
+            distance_m = msg.distance / 100.0
         elif msg.get_type() == 'DISTANCE_SENSOR':
-            distance_m = msg.current_distance / 100.0  # cm to meters
-        
-        # Create and publish a simple Float32 message with just the distance
-        distance_msg = Float32()
-        distance_msg.data = float(distance_m)
-        self.rangefinder_pub.publish(distance_msg)
-        
-        # Log the distance (throttled to avoid spam)
-        # self.get_logger().info(
-        #     f"Rangefinder distance: {distance_m:.2f} m",
-        #     throttle_duration_sec=1.0
-        # )
+            distance_m = msg.current_distance / 100.0
+        self.rangefinder_pub.publish(Float32(data=distance_m))
 
     def pose_callback(self, msg):
+        if not self.connected:
+            self.get_logger().warn("Not connected to MAVLink. Skipping pose.")
+            return
+
         x_cam = msg.pose.position.x
         y_cam = msg.pose.position.y
         z_cam = msg.pose.position.z
 
         if z_cam <= 0:
-            self.get_logger().warn("Invalid Z distance (<=0), ignoring message")
+            self.get_logger().warn("Invalid Z (<= 0). Skipping.")
             return
 
         angle_x = math.atan2(x_cam, z_cam)
         angle_y = math.atan2(y_cam, z_cam)
-        distance = math.sqrt(x_cam**2 + y_cam**2 + z_cam**2)
+        distance = math.sqrt(x_cam ** 2 + y_cam ** 2 + z_cam ** 2)
 
         try:
-            landing_target_msg = self.vehicle.mav.landing_target_encode(
+            msg = self.vehicle.mav.landing_target_encode(
                 0, 0, mavutil.mavlink.MAV_FRAME_BODY_FRD,
                 angle_x, angle_y, distance, 0.0, 0.0
             )
-            self.vehicle.mav.send(landing_target_msg)
-            # self.get_logger().debug(
-            #     f"Sent LANDING_TARGET: angles=({math.degrees(angle_x):.1f}°, {math.degrees(angle_y):.1f}°) dist={distance:.1f}m"
-            # )
+            self.vehicle.mav.send(msg)
         except Exception as e:
-            self.get_logger().error(f"MAVLink send failed: {str(e)}")
+            self.get_logger().error(f"Failed to send LANDING_TARGET: {e}")
 
     def periodic_tasks(self):
-        """Periodic tasks (if any needed)"""
         pass
+
+    def destroy_node(self):
+        self.stop_thread = True
+        time.sleep(1)
+        super().destroy_node()
 
 def main(args=None):
     rclpy.init(args=args)
     bridge = LandingTargetBridge()
-
     try:
         rclpy.spin(bridge)
     except KeyboardInterrupt:
-        pass
+        bridge.get_logger().info("Keyboard interrupt. Shutting down.")
     finally:
         bridge.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
+
