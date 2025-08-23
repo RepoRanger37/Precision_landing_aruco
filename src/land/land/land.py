@@ -147,15 +147,9 @@ class LandingTargetBridge(Node):
 
         flight_mode = ARDUPILOT_FLIGHT_MODES.get(custom_mode, f"UNKNOWN({custom_mode})")
         is_armed = (base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
-        is_landed = system_status in [
-            mavutil.mavlink.MAV_STATE_STANDBY,
-            mavutil.mavlink.MAV_STATE_BOOT,
-            mavutil.mavlink.MAV_STATE_POWEROFF,
-        ]
-        is_flying = not is_landed
 
         status_msg = Bool()
-        status_msg.data = (flight_mode == "LAND") and is_flying
+        status_msg.data = (flight_mode == "LAND") and is_armed
         self.status_pub.publish(status_msg)
 
     def handle_rangefinder(self, msg):
