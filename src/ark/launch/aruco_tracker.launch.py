@@ -29,5 +29,11 @@ def generate_launch_description():
             name='Buffer',
             output='screen',   
         ),
+        Node(
+            package='ark',
+            executable='Video',
+            name='Recorder',
+            output='screen',   
+        ),   
     ])
 
