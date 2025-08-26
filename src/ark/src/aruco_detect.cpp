@@ -21,7 +21,7 @@
 class ArucoDetectorNode : public rclcpp::Node {
 public:
   ArucoDetectorNode() : Node("aruco_detector_node") {
-    declare_parameter<double>("marker_length", 0.5);
+    declare_parameter<double>("marker_length", 0.256);
     declare_parameter<std::string>("camera_topic", "/camera");
     declare_parameter<std::string>("camera_info_topic", "/camera_info");
     declare_parameter<int>("dictionary_id", cv::aruco::DICT_4X4_250);
@@ -48,6 +48,11 @@ public:
       "/rf_distance", 10,
       std::bind(&ArucoDetectorNode::rfDistanceCallback, this, std::placeholders::_1));
 
+    armed_sub_ = create_subscription<std_msgs::msg::Bool>(
+      "/land_armed_status", 10, std::bind(&ArucoDetectorNode::armedCallback, this, std::placeholders::_1));
+    disarmed_sub_ = create_subscription<std_msgs::msg::Bool>(
+      "/land_disarmed_status", 10, std::bind(&ArucoDetectorNode::disarmedCallback, this, std::placeholders::_1));
+
     image_pub_ = image_transport::create_publisher(this, "/aruco_detection");
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/target_pose", 10);
 
@@ -69,6 +74,8 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr status_sub_;
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr rf_distance_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr disarmed_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
 
   // ArUco
@@ -86,6 +93,10 @@ private:
   // RF distance
   float rf_distance_;
   bool rf_distance_received_;
+
+  // Armed/disarmed state
+  bool armed_{false};
+  bool disarmed_{false};
 
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
     if (!camera_info_received_) {
@@ -115,6 +126,14 @@ private:
   void rfDistanceCallback(const std_msgs::msg::Float32::SharedPtr msg) {
     rf_distance_ = msg->data;
     rf_distance_received_ = true;
+  }
+
+  void armedCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+    armed_ = msg->data;
+  }
+
+  void disarmedCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+    disarmed_ = msg->data;
   }
 
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
@@ -196,7 +215,7 @@ private:
   }
 
   void drawCoordinates(cv::Mat &image, const cv::Vec3d &tvec, bool detected, float error_percent) {
-    const double font_scale = 1.0;
+    const double font_scale = 0.7;
     const int thickness = 2;
     const int line_height = 30;
     const cv::Scalar color = detected ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 0, 255);
@@ -222,7 +241,7 @@ private:
     error_ss << std::fixed << std::setprecision(2);
     error_ss << "Error: " << (detected && rf_distance_received_ ? error_percent : 0.0f) << " %";
     std::string error_text = error_ss.str();
-    cv::putText(image, error_text, cv::Point(20, image.rows - 10), cv::FONT_HERSHEY_SIMPLEX, 1.0, color, 2);
+    cv::putText(image, error_text, cv::Point(20, image.rows - 10), cv::FONT_HERSHEY_SIMPLEX, 0.7, color, 2);
   }
 
   void drawOverlayText(cv::Mat &image) {
@@ -249,6 +268,36 @@ private:
       rec_text = "Not Rec";
     }
     cv::putText(image, rec_text, cv::Point(20, 30), cv::FONT_HERSHEY_SIMPLEX, font_scale, color, thickness);
+
+    // --- Draw ARMED, DISARMED, LAND vertically at bottom-left above ERROR ---
+    int base_x = 20;
+    int error_y = image.rows - 10; // ERROR text y
+    int line_height = 38; // vertical spacing
+    int dot_radius = 12;
+    int font_thickness = 2;
+    double font_scale_overlay = 0.7;
+
+    // ARMED
+    cv::Scalar armed_dot = armed_ ? cv::Scalar(0,255,0) : cv::Scalar(0,0,255);
+    std::string armed_text = "ARMED";
+    int armed_y = error_y - line_height * 1;
+    cv::putText(image, armed_text, cv::Point(base_x + 30, armed_y), cv::FONT_HERSHEY_SIMPLEX, font_scale_overlay, cv::Scalar(255,255,255), font_thickness);
+    cv::circle(image, cv::Point(base_x + 10, armed_y - 10), dot_radius, armed_dot, -1);
+
+    // DISARMED
+    cv::Scalar disarmed_dot = disarmed_ ? cv::Scalar(0,255,0) : cv::Scalar(0,0,255);
+    std::string disarmed_text = "DISARMED";
+    int disarmed_y = error_y - line_height * 2;
+    cv::putText(image, disarmed_text, cv::Point(base_x + 30, disarmed_y), cv::FONT_HERSHEY_SIMPLEX, font_scale_overlay, cv::Scalar(255,255,255), font_thickness);
+    cv::circle(image, cv::Point(base_x + 10, disarmed_y - 10), dot_radius, disarmed_dot, -1);
+
+    // LAND
+    bool any_true = armed_ || disarmed_;
+    cv::Scalar land_color = any_true ? cv::Scalar(255,0,0) : cv::Scalar(255,255,255); // Blue if any true, else white
+    std::string land_text = "LAND";
+    int land_y = error_y - line_height * 3;
+    cv::putText(image, land_text, cv::Point(base_x + 30, land_y), cv::FONT_HERSHEY_SIMPLEX, font_scale_overlay, land_color, font_thickness);
+    cv::circle(image, cv::Point(base_x + 10, land_y - 10), dot_radius, land_color, -1);
   }
 
   void drawCrosshair(cv::Mat &image) {
