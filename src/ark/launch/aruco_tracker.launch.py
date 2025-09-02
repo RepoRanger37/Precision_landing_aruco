@@ -13,8 +13,8 @@ def generate_launch_description():
         # Aruco tracker node
         Node(
             package='ark',
-            executable='aruco',
-            name='aruco',
+            executable='daruco',
+            name='daruco',
             output='screen',  
         ),
         Node(

@@ -33,6 +33,9 @@ ament_target_dependencies(aruco
   tf2_geometry_msgs
 )
 
+add_executable(daruco src/daruco.cpp)
+ament_target_dependencies(daruco rclcpp sensor_msgs cv_bridge image_transport OpenCV geometry_msgs tf2 tf2_geometry_msgs)
+
 add_executable(fb src/buffer.cpp)
 ament_target_dependencies(fb rclcpp sensor_msgs OpenCV cv_bridge)
 
@@ -60,6 +63,7 @@ install(TARGETS aruco
 		fb
 		video
 		rec
+		daruco
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch
