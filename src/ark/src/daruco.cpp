@@ -61,6 +61,10 @@ public:
       "/armed_status", 10,
       std::bind(&ArucoDetectorNode::armedStatusCallback, this, std::placeholders::_1));
 
+    recording_status_sub_ = create_subscription<std_msgs::msg::Bool>(
+      "/recording_status", 10,
+      std::bind(&ArucoDetectorNode::recordingStatusCallback, this, std::placeholders::_1));
+
     image_pub_ = image_transport::create_publisher(this, "/aruco_detection");
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/target_pose", 10);
 
@@ -88,6 +92,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr flight_mode_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_status_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr recording_status_sub_;
 
   // ArUco
   cv::Ptr<cv::aruco::Dictionary> dictionary_;
@@ -99,6 +104,8 @@ private:
   // Status
   bool landing_status_;
   bool recording_active_;
+  bool is_recording_ = false;
+  rclcpp::Time recording_start_time_;
   rclcpp::Time start_time_;
 
   float rf_distance_;
@@ -143,6 +150,15 @@ private:
 
   void armedStatusCallback(const std_msgs::msg::Bool::SharedPtr msg) {
     armed_ = msg->data;
+  }
+
+  void recordingStatusCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+    if (msg->data && !is_recording_) {
+      is_recording_ = true;
+      recording_start_time_ = now();
+    } else if (!msg->data) {
+      is_recording_ = false;
+    }
   }
 
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
@@ -319,7 +335,7 @@ private:
 
   void drawOverlayText(cv::Mat &image) {
     const double font_scale = 0.5;
-    const int thickness = 1.8;
+    const int thickness = 2.0;
 
     // Colors
     const cv::Scalar blue(255, 0, 0);
@@ -348,8 +364,23 @@ private:
     cv::putText(image, armed_str, cv::Point(x_center - total_width/2 + mode_width + 30, y_top), cv::FONT_HERSHEY_SIMPLEX, font_scale, armed_color, thickness);
 
     // Top left: Recording status
-    std::string rec_text = recording_active_ ? "Rec" : "Not Rec";
-    cv::Scalar rec_color = recording_active_ ? red : white;
+    std::string rec_text;
+    cv::Scalar rec_color;
+
+    if (is_recording_) {
+      auto elapsed = now() - recording_start_time_;
+      int total_seconds = elapsed.seconds();
+      int minutes = total_seconds / 60;
+      int seconds = total_seconds % 60;
+      char buf[20];
+      snprintf(buf, sizeof(buf), "REC %02d:%02d", minutes, seconds);
+      rec_text = buf;
+      rec_color = cv::Scalar(0, 0, 255); // Red
+    }else {
+      rec_text = "NOT REC";
+      rec_color = cv::Scalar(255, 255, 255); // White
+    }
+
     cv::putText(image, rec_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, font_scale, rec_color, thickness);
    
     if (rf_distance_received_) {
@@ -369,7 +400,7 @@ private:
 
     std::string text = "Searching";
     const double font_scale = 0.5;
-    const int thickness = 1.3;
+    const int thickness = 2.0;
     cv::Scalar white(255, 255, 255);
 
     int baseline = 0;
@@ -399,3 +430,4 @@ int main(int argc, char **argv) {
   rclcpp::shutdown();
   return 0;
 }
+

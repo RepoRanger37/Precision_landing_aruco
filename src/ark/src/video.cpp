@@ -1,6 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <filesystem>
@@ -13,22 +14,13 @@ class CameraRecorder : public rclcpp::Node
 public:
     CameraRecorder()
         : Node("camera_recorder"),
-          debounce_duration_(rclcpp::Duration::from_seconds(0.5)),
-          suppression_duration_(rclcpp::Duration::from_seconds(10.0))
+          recording_active_(false),
+          writer_initialized_(false),
+          timing_started_(false),
+          frame_count_(0),
+          prev_flight_mode_(""),
+          prev_armed_status_(false)
     {
-        // Declare parameters and override durations if needed
-        this->declare_parameter<double>("debounce_duration", 0.5);
-        this->declare_parameter<double>("suppression_duration", 10.0);
-
-        double debounce_sec = this->get_parameter("debounce_duration").as_double();
-        double suppression_sec = this->get_parameter("suppression_duration").as_double();
-
-        debounce_duration_ = rclcpp::Duration::from_seconds(debounce_sec);
-        suppression_duration_ = rclcpp::Duration::from_seconds(suppression_sec);
-
-        RCLCPP_INFO(this->get_logger(), "Debounce duration: %.2f seconds", debounce_sec);
-        RCLCPP_INFO(this->get_logger(), "Suppression duration: %.2f seconds", suppression_sec);
-
         std::string output_folder = "/home/pi/Video";
         std::filesystem::create_directories(output_folder);
 
@@ -40,65 +32,42 @@ public:
             "/aruco_detection", 10,
             std::bind(&CameraRecorder::image_callback, this, std::placeholders::_1));
 
+        flight_mode_sub_ = this->create_subscription<std_msgs::msg::String>(
+            "/flight_mode", 10,
+            std::bind(&CameraRecorder::flight_mode_callback, this, std::placeholders::_1));
+
         armed_status_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-            "/land_armed_status", 10,
+            "/armed_status", 10,
             std::bind(&CameraRecorder::armed_status_callback, this, std::placeholders::_1));
 
-        disarmed_status_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-            "/land_disarmed_status", 10,
-            std::bind(&CameraRecorder::disarmed_status_callback, this, std::placeholders::_1));
-
-        ch8_status_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-            "/rcin_channel_8", 10,
-            std::bind(&CameraRecorder::ch8_status_callback, this, std::placeholders::_1));
-
-        recording_active_ = false;
-        writer_initialized_ = false;
-        timing_started_ = false;
-        frame_count_ = 0;
-
-        last_armed_trigger_time_ = this->now();
-        last_disarmed_trigger_time_ = this->now();
-        last_ch8_trigger_time_ = this->now();
+        rec_status_pub_ = this->create_publisher<std_msgs::msg::Bool>("/recording_status", 10);
 
         RCLCPP_INFO(this->get_logger(), "CameraRecorder node initialized.");
     }
 
 private:
-    // ---- Subscriptions ----
+    // Subscriptions
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr flight_mode_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_status_sub_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr disarmed_status_sub_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr ch8_status_sub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr rec_status_pub_;
 
-    // ---- OpenCV Video ----
+    // Video recording
     cv::VideoWriter video_writer_;
-
-    // ---- File Management ----
     std::string temp_path_;
     std::string video_output_dir_;
     int video_index_;
 
-    // ---- State Tracking ----
+    // State tracking
     bool recording_active_;
     bool writer_initialized_;
     bool timing_started_;
     int frame_count_;
+    std::string prev_flight_mode_;
+    bool prev_armed_status_;
     rclcpp::Time start_time_;
 
-    // ---- Trigger Debounce ----
-    bool prev_armed_status_ = false;
-    bool prev_disarmed_status_ = false;
-    bool prev_ch8_status_ = false;
-
-    rclcpp::Time last_armed_trigger_time_;
-    rclcpp::Time last_disarmed_trigger_time_;
-    rclcpp::Time last_ch8_trigger_time_;
-
-    rclcpp::Duration debounce_duration_;
-    rclcpp::Duration suppression_duration_;
-
-    // ---- File Naming ----
+    // --- Get next index for video file ---
     int get_next_video_index(const std::string &folder)
     {
         namespace fs = std::filesystem;
@@ -121,60 +90,47 @@ private:
         return max_index + 1;
     }
 
+    // --- Flight mode callback ---
+    void flight_mode_callback(const std_msgs::msg::String::SharedPtr msg)
+    {
+        std::string current_mode = msg->data;
+
+        if (prev_flight_mode_ != "LAND" && current_mode == "LAND" && prev_armed_status_ && !recording_active_) {
+            RCLCPP_INFO(this->get_logger(), "Flight mode changed to LAND. Starting recording.");
+            start_recording();
+        }
+        else if (prev_flight_mode_ == "LAND" &&
+                 (current_mode == "LOITER" || current_mode == "ALTHOLD")) {
+            if (recording_active_) {
+                RCLCPP_WARN(this->get_logger(), "Mode changed from LAND to %s. Discarding video.", current_mode.c_str());
+                discard_recording();
+            }
+        }
+
+        prev_flight_mode_ = current_mode;
+    }
+
+    void publish_recording_status(bool status)
+    {
+        auto msg = std_msgs::msg::Bool();
+        msg.data = status;
+        rec_status_pub_->publish(msg);
+    }
+
+    // --- Armed status callback ---
     void armed_status_callback(const std_msgs::msg::Bool::SharedPtr msg)
     {
-        rclcpp::Time now = this->now();
-        if (!prev_armed_status_ && msg->data) {
-            if ((now - last_armed_trigger_time_) > debounce_duration_ &&
-                (now - last_armed_trigger_time_) > suppression_duration_) {
+        bool current_armed = msg->data;
 
-                RCLCPP_INFO(this->get_logger(), "Land armed status: TRUE. Starting recording.");
-                start_recording();
-                last_armed_trigger_time_ = now;
-
-            } else {
-                RCLCPP_WARN(this->get_logger(), "Armed trigger suppressed.");
-            }
+        if (prev_flight_mode_ == "LAND" && prev_armed_status_ && !current_armed && recording_active_) {
+            RCLCPP_INFO(this->get_logger(), "Drone disarmed in LAND mode. Saving video.");
+            stop_and_save_recording(this->now());
         }
-        prev_armed_status_ = msg->data;
+
+        prev_armed_status_ = current_armed;
     }
 
-    void disarmed_status_callback(const std_msgs::msg::Bool::SharedPtr msg)
-    {
-        rclcpp::Time now = this->now();
-        if (!prev_disarmed_status_ && msg->data && recording_active_) {
-            if ((now - last_disarmed_trigger_time_) > debounce_duration_ &&
-                (now - last_disarmed_trigger_time_) > suppression_duration_) {
-
-                RCLCPP_INFO(this->get_logger(), "Land disarmed status: TRUE. Stopping and saving recording.");
-                stop_and_save_recording(now);
-                last_disarmed_trigger_time_ = now;
-
-            } else {
-                RCLCPP_WARN(this->get_logger(), "Disarmed trigger suppressed.");
-            }
-        }
-        prev_disarmed_status_ = msg->data;
-    }
-
-    void ch8_status_callback(const std_msgs::msg::Bool::SharedPtr msg)
-    {
-        rclcpp::Time now = this->now();
-        if (!prev_ch8_status_ && msg->data && recording_active_) {
-            if ((now - last_ch8_trigger_time_) > debounce_duration_ &&
-                (now - last_ch8_trigger_time_) > suppression_duration_) {
-
-                RCLCPP_INFO(this->get_logger(), "RC channel 8 triggered. Stopping and saving recording.");
-                stop_and_save_recording(now);
-                last_ch8_trigger_time_ = now;
-
-            } else {
-                RCLCPP_WARN(this->get_logger(), "CH8 trigger suppressed.");
-            }
-        }
-        prev_ch8_status_ = msg->data;
-    }
-
+    // --- Start recording ---
     void start_recording()
     {
         recording_active_ = true;
@@ -183,8 +139,11 @@ private:
         timing_started_ = false;
         temp_path_ = video_output_dir_ + "/temp_video.mp4";
         start_time_ = this->now();
+
+        publish_recording_status(true);
     }
 
+    // --- Stop and save video ---
     void stop_and_save_recording(const rclcpp::Time &now)
     {
         if (video_writer_.isOpened()) {
@@ -206,12 +165,36 @@ private:
             RCLCPP_ERROR(this->get_logger(), "Failed to rename video file: %s", e.what());
         }
 
+        publish_recording_status(false);
         video_index_++;
         recording_active_ = false;
         writer_initialized_ = false;
         timing_started_ = false;
     }
 
+    // --- Discard temp video ---
+    void discard_recording()
+    {
+        if (video_writer_.isOpened()) {
+            video_writer_.release();
+        }
+
+        try {
+            if (std::filesystem::exists(temp_path_)) {
+                std::filesystem::remove(temp_path_);
+                RCLCPP_INFO(this->get_logger(), "Temporary video discarded.");
+            }
+        } catch (const std::filesystem::filesystem_error &e) {
+            RCLCPP_ERROR(this->get_logger(), "Error deleting temp video: %s", e.what());
+        }
+
+        publish_recording_status(false);
+        recording_active_ = false;
+        writer_initialized_ = false;
+        timing_started_ = false;
+    }
+
+    // --- Image stream callback ---
     void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
         if (!recording_active_) return;
@@ -267,7 +250,7 @@ private:
     }
 };
 
-// ---- Main Function ----
+// --- Main ---
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
