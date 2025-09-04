@@ -334,7 +334,7 @@ private:
   }
 
   void drawOverlayText(cv::Mat &image) {
-    const double font_scale = 0.5;
+    const double font_scale = 0.7;
     const int thickness = 2.0;
 
     // Colors
