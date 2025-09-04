@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, String
 import math
 from pymavlink import mavutil
 import time
@@ -32,12 +32,13 @@ class LandingTargetBridge(Node):
         self.connected = False
         self.stop_thread = False
         self.device = None
-
+        self.flight_mode_pub = self.create_publisher(String, '/flight_mode', 10)
+        self.armed_status_pub = self.create_publisher(Bool, '/armed_status', 10)
         self.land_armed_pub = self.create_publisher(Bool, '/land_armed_status', 10)
         self.land_disarmed_pub = self.create_publisher(Bool, '/land_disarmed_status', 10)
         self.rcin_ch8_pub = self.create_publisher(Bool, '/rcin_channel_8', 10)
         self.rangefinder_pub = self.create_publisher(Float32, '/rf_distance', 10)
-
+        self.rcin_ch6_pub = self.create_publisher(Bool, '/rcin_channel_6', 10)
         self.subscription = self.create_subscription(
             PoseStamped,
             pose_topic,
@@ -158,6 +159,12 @@ class LandingTargetBridge(Node):
         self.land_armed_pub.publish(land_armed_msg)
         self.land_disarmed_pub.publish(land_disarmed_msg)
 
+        flight_mode_msg = String()
+        flight_mode_msg.data = flight_mode
+        self.flight_mode_pub.publish(flight_mode_msg)
+
+        self.armed_status_pub.publish(Bool(data=is_armed))
+
     def handle_rangefinder(self, msg):
         distance_m = 0.0
         if msg.get_type() == 'SCALED_RANGEFINDER':
@@ -175,6 +182,13 @@ class LandingTargetBridge(Node):
             # self.get_logger().info(f"CH8 PWM: {ch8_pwm} µs -> {'ON' if is_active else 'OFF'}")
         else:
             self.get_logger().warn("chan8_raw not found in RC_CHANNELS message")
+
+        ch6_pwm = getattr(msg, 'chan6_raw', None)
+        if ch6_pwm is not None:
+            is_ch6_high = ch6_pwm > 1800
+            self.rcin_ch6_pub.publish(Bool(data=is_ch6_high))
+        else:
+            self.get_logger().warn("chan6_raw not found in RC_CHANNELS message")
 
     def pose_callback(self, msg):
         if not self.connected:
