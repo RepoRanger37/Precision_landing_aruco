@@ -32,7 +32,7 @@ public:
     int dictionary_id = get_parameter("dictionary_id").as_int();
 
     marker_sizes_ = {
-      {0, 0.256},  // Marker ID 0 → 0.256m
+      {0, 0.25},  // Marker ID 0 → 0.256m
       {1, 0.1}     // Marker ID 1 → 0.1m
     };
 
@@ -65,6 +65,42 @@ public:
       "/recording_status", 10,
       std::bind(&ArucoDetectorNode::recordingStatusCallback, this, std::placeholders::_1));
 
+    fence_enabled_sub_ = create_subscription<std_msgs::msg::Bool>(
+  "/fence_enabled", 10, [this](const std_msgs::msg::Bool::SharedPtr msg) {
+    fence_enabled_ = msg->data;
+    });
+
+    gyro_ok_sub_ = create_subscription<std_msgs::msg::Bool>(
+      "/gyro_ok", 10, [this](const std_msgs::msg::Bool::SharedPtr msg) {
+        gyro_ok_ = msg->data;
+      });
+
+    magfield_sub_ = create_subscription<std_msgs::msg::Float32>(
+      "/magfield", 10, [this](const std_msgs::msg::Float32::SharedPtr msg) {
+        magfield_ = msg->data;
+      });
+
+    gps_status_sub_ = create_subscription<std_msgs::msg::String>(
+      "/gps_status", 10, [this](const std_msgs::msg::String::SharedPtr msg) {
+        gps_status_ = msg->data;
+      });
+
+    gps_satellites_sub_ = create_subscription<std_msgs::msg::Float32>(
+      "/gps_satellites", 10, [this](const std_msgs::msg::Float32::SharedPtr msg) {
+        gps_satellites_ = static_cast<int>(msg->data);
+      });
+
+    battery_voltage_sub_ = create_subscription<std_msgs::msg::Float32>(
+      "/battery_voltage", 10, [this](const std_msgs::msg::Float32::SharedPtr msg) {
+        battery_voltage_ = msg->data;
+      });
+
+    battery_current_sub_ = create_subscription<std_msgs::msg::Float32>(
+      "/battery_current", 10, [this](const std_msgs::msg::Float32::SharedPtr msg) {
+        battery_current_ = msg->data;
+      });
+
+
     image_pub_ = image_transport::create_publisher(this, "/aruco_detection");
     pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/target_pose", 10);
 
@@ -93,6 +129,25 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_status_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr recording_status_sub_;
+
+  // Fence and system diagnostics
+  bool fence_enabled_ = false;
+  bool gyro_ok_ = false;
+  float magfield_ = 0.0f;
+  std::string gps_status_ = "UNKNOWN";
+  int gps_satellites_ = 0;
+  float battery_voltage_ = 0.0f;
+  float battery_current_ = 0.0f;
+
+  // Subscriptions
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr fence_enabled_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr gyro_ok_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr magfield_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr gps_status_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr gps_satellites_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr battery_voltage_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr battery_current_sub_;
+
 
   // ArUco
   cv::Ptr<cv::aruco::Dictionary> dictionary_;
@@ -207,9 +262,9 @@ private:
         bool use_this_marker = false;
 
         // Corrected logic: ID 0 → distance > 2.0, ID 1 → distance ≤ 2.0
-        if (marker_id == 0 && rf_distance_ > 2.0f) {
+        if (marker_id == 0 && rf_distance_ > 3.0f) {
           use_this_marker = true;
-        } else if (marker_id == 1 && rf_distance_ <= 2.0f) {
+        } else if (marker_id == 1 && rf_distance_ <= 3.0f) {
           use_this_marker = true;
         }
 
@@ -334,65 +389,93 @@ private:
   }
 
   void drawOverlayText(cv::Mat &image) {
-    const double font_scale = 0.7;
-    const int thickness = 2.0;
+  const double font_scale = 0.5;
+  const int thickness = 2;
 
-    // Colors
-    const cv::Scalar blue(255, 0, 0);
-    const cv::Scalar green(0, 255, 0);
-    const cv::Scalar red(0, 0, 255);
-    const cv::Scalar white(255, 255, 255);
+  // Colors
+  const cv::Scalar blue(255, 0, 0);
+  const cv::Scalar green(0, 255, 0);
+  const cv::Scalar red(0, 0, 255);
+  const cv::Scalar white(255, 255, 255);
+  const cv::Scalar yellow(0, 255, 255);
+  const cv::Scalar orange(0, 165, 255);
+  const cv::Scalar black(0, 0, 0);
 
-    // Top center: MODE - ARMED/DISARMED
-    std::string armed_str = armed_ ? "ARMED" : "DISARMED";
+  int y = 30;
 
+  // Top-left: Recording status
+  std::string rec_text;
+  cv::Scalar rec_color;
+  if (is_recording_) {
+    auto elapsed = now() - recording_start_time_;
+    int total_seconds = elapsed.seconds();
+    int minutes = total_seconds / 60;
+    int seconds = total_seconds % 60;
+    char buf[20];
+    snprintf(buf, sizeof(buf), "REC %02d:%02d", minutes, seconds);
+    rec_text = buf;
+    rec_color = red;
+  } else {
+    rec_text = "NOT REC";
+    rec_color = white;
+  }
 
-    int baseline = 0;
-    int mode_width = cv::getTextSize(flight_mode_, cv::FONT_HERSHEY_SIMPLEX, font_scale, thickness, &baseline).width;
-    int armed_width = cv::getTextSize(armed_str, cv::FONT_HERSHEY_SIMPLEX, font_scale, thickness, &baseline).width;
-    int total_width = mode_width + armed_width + 10; // 10 px space
+  cv::putText(image, rec_text, cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, rec_color, thickness);
+  y += 30;
 
-    int x_center = image.cols / 2;
-    int y_top = 30;
-
-    // Draw MODE in blue
-    cv::putText(image, flight_mode_, cv::Point(x_center - total_width/2, y_top), cv::FONT_HERSHEY_SIMPLEX, font_scale, blue, thickness);
-    // Draw " - "
-    cv::putText(image, " - ", cv::Point(x_center - total_width/2 + mode_width, y_top), cv::FONT_HERSHEY_SIMPLEX, font_scale, white, thickness);
-    // Draw ARMED/DISARMED
-    cv::Scalar armed_color = armed_ ? green : red;
-    cv::putText(image, armed_str, cv::Point(x_center - total_width/2 + mode_width + 30, y_top), cv::FONT_HERSHEY_SIMPLEX, font_scale, armed_color, thickness);
-
-    // Top left: Recording status
-    std::string rec_text;
-    cv::Scalar rec_color;
-
-    if (is_recording_) {
-      auto elapsed = now() - recording_start_time_;
-      int total_seconds = elapsed.seconds();
-      int minutes = total_seconds / 60;
-      int seconds = total_seconds % 60;
-      char buf[20];
-      snprintf(buf, sizeof(buf), "REC %02d:%02d", minutes, seconds);
-      rec_text = buf;
-      rec_color = cv::Scalar(0, 0, 255); // Red
-    }else {
-      rec_text = "NOT REC";
-      rec_color = cv::Scalar(255, 255, 255); // White
-    }
-
-    cv::putText(image, rec_text, cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, font_scale, rec_color, thickness);
-   
-    if (rf_distance_received_) {
+  // Keep Alt
+  if (rf_distance_received_) {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(2);
     oss << "Keep Alt: " << rf_distance_ << " m";
-    std::string alt_text = oss.str();
+    cv::putText(image, oss.str(), cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, yellow, thickness);
+    y += 30;
+  }
 
-    cv::Scalar yellow(0, 255, 255);
-    cv::putText(image, alt_text, cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX, font_scale, yellow, thickness);
-    }
+  // Fence
+  cv::putText(image, "FENCE", cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, fence_enabled_ ? green : red, thickness);
+  y += 30;
+
+  // Gyro
+  cv::putText(image, std::string("GYRO") + (gyro_ok_ ? "YES" : "NO"),
+              cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, gyro_ok_ ? green : red, thickness);
+  y += 30;
+
+  // Magfield
+  cv::Scalar mag_color = (magfield_ > 480.0f) ? red : white;
+  std::ostringstream mag_ss;
+  mag_ss << "MAGFIELD: " << static_cast<int>(magfield_);
+  cv::putText(image, mag_ss.str(), cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, mag_color, thickness);
+  y += 30;
+
+  // GPS
+  cv::Scalar gps_color = gps_satellites_ < 5 ? red : (gps_satellites_ < 10 ? orange : green);
+  std::ostringstream gps_ss;
+  gps_ss << "GPS: " << gps_status_ << " Sat: " << gps_satellites_;
+  cv::putText(image, gps_ss.str(), cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, gps_color, thickness);
+  y += 30;
+
+  // Battery
+  std::ostringstream batt_ss;
+  batt_ss << std::fixed << std::setprecision(2);
+  batt_ss << "BATT V: " << battery_voltage_ << "V  I: " << battery_current_ << "A";
+  cv::putText(image, batt_ss.str(), cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, white, thickness);
+  y += 30;
+
+  // Top center: Flight Mode & Armed
+  std::string armed_str = armed_ ? "ARMED" : "DISARMED";
+  int baseline = 0;
+  int mode_width = cv::getTextSize(flight_mode_, cv::FONT_HERSHEY_SIMPLEX, font_scale, thickness, &baseline).width;
+  int armed_width = cv::getTextSize(armed_str, cv::FONT_HERSHEY_SIMPLEX, font_scale, thickness, &baseline).width;
+  int total_width = mode_width + armed_width + 10;
+  int x_center = image.cols / 2;
+
+  cv::putText(image, flight_mode_, cv::Point(x_center - total_width/2, 30), cv::FONT_HERSHEY_SIMPLEX, font_scale, blue, thickness);
+  cv::putText(image, " - ", cv::Point(x_center - total_width/2 + mode_width, 30), cv::FONT_HERSHEY_SIMPLEX, font_scale, white, thickness);
+  cv::putText(image, armed_str, cv::Point(x_center - total_width/2 + mode_width + 30, 30), cv::FONT_HERSHEY_SIMPLEX, font_scale,
+              armed_ ? green : red, thickness);
 }
+
 
   void drawSearchingText(cv::Mat &image, bool detected) {
     if (detected)
@@ -430,4 +513,3 @@ int main(int argc, char **argv) {
   rclcpp::shutdown();
   return 0;
 }
-
