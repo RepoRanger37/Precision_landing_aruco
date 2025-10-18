@@ -21,15 +21,15 @@ def generate_launch_description():
             parameters=[{'robot_description': robot_desc}],
             output='screen'
         ),
-        # Node(
-        #     package='drone',
-        #     executable='rf',
-        #     name='rf_node',
-        #     output='screen',
-        #     parameters=[{'base_frame_id': 'base_link',
-        #                  'z_covariance': 0.1
-        #     }]
-        # ),
+        Node(
+             package='drone',
+             executable='rf',
+             name='rf_node',
+             output='screen',
+             parameters=[{'base_frame_id': 'base_link',
+                          'z_covariance': 0.1
+             }]
+         ),
         Node(
             package='robot_localization',
             executable='ekf_node',

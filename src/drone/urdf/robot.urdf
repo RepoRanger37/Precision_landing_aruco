@@ -1,5 +1,135 @@
 <?xml version="1.0"?>
-<robot name="simple_box">
+<robot name="simple_drone">
+
+  <!-- Central Body -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.2 0.2 0.05"/>  <!-- 20cm x 20cm base -->
+      </geometry>
+      <origin xyz="0 0 0"/>
+      <material name="blue">
+        <color rgba="0 0 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.2 0.2 0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.02" ixy="0" ixz="0"
+               iyy="0.02" iyz="0"
+               izz="0.03"/>
+    </inertial>
+  </link>
+
+  <!-- Arms (30 cm) -->
+  <!-- Front Left Arm -->
+  <link name="arm_fl">
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.3"/>
+      </geometry>
+      <origin xyz="0.212 0.212 0" rpy="0 0 0.7854"/> <!-- 45 deg -->
+      <material name="gray">
+        <color rgba="0.5 0.5 0.5 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="joint_fl" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_fl"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
+  <!-- Front Right Arm -->
+  <link name="arm_fr">
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.3"/>
+      </geometry>
+      <origin xyz="0.212 -0.212 0" rpy="0 0 -0.7854"/>
+      <material name="gray"/>
+    </visual>
+  </link>
+  <joint name="joint_fr" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_fr"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
+  <!-- Back Left Arm -->
+  <link name="arm_bl">
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.3"/>
+      </geometry>
+      <origin xyz="-0.212 0.212 0" rpy="0 0 -0.7854"/>
+      <material name="gray"/>
+    </visual>
+  </link>
+  <joint name="joint_bl" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_bl"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
+  <!-- Back Right Arm -->
+  <link name="arm_br">
+    <visual>
+      <geometry>
+        <cylinder radius="0.01" length="0.3"/>
+      </geometry>
+      <origin xyz="-0.212 -0.212 0" rpy="0 0 0.7854"/>
+      <material name="gray"/>
+    </visual>
+  </link>
+  <joint name="joint_br" type="fixed">
+    <parent link="base_link"/>
+    <child link="arm_br"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
+  <!-- Rotors (Optional Visuals) -->
+  <!-- Example: Rotor on Front Left Arm -->
+  <link name="rotor_fl">
+    <visual>
+      <geometry>
+        <sphere radius="0.03"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="rotor_joint_fl" type="fixed">
+    <parent link="arm_fl"/>
+    <child link="rotor_fl"/>
+    <origin xyz="0.15 0 0"/> <!-- End of arm -->
+  </joint>
+
+  <!-- (Repeat for other rotors if desired) -->
+
+  <!-- GPS Module -->
+  <link name="gps">
+    <visual>
+      <geometry>
+        <sphere radius="0.05"/>
+      </geometry>
+      <material name="yellow">
+        <color rgba="1 1 0 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="gps"/>
+    <origin xyz="0 0 0.2"/>
+  </joint>
+
+  <!-- Base Footprint -->
   <link name="base_footprint">
     <visual>
       <geometry>
@@ -7,78 +137,10 @@
       </geometry>
     </visual>
   </link>
-  
-  <joint name="base_footprint_to_base_link" type="fixed">
-    <origin xyz="0 0 0.1"/>
-    <parent link="base_footprint"/>
-    <child link="base_link"/>
-  </joint>
-  
-  <link name="base_link">
-
-  <!-- Arrow Body (Blue Rectangle) -->
-  <visual>
-    <geometry>
-      <box size="0.2 0.05 0.05"/>
-    </geometry>
-    <origin xyz="0.1 0 0" />
-    <material name="blue">
-      <color rgba="0 0 1 1"/>
-    </material>
-  </visual>
-
-  <!-- Top Slant (Red) -->
-  <visual>
-    <geometry>
-      <box size="0.1 0.01 0.05"/>
-    </geometry>
-    <origin xyz="0.25 0.015 0" rpy="0 0 -0.7854"/>  <!-- -45° -->
-    <material name="red">
-      <color rgba="1 0 0 1"/>
-    </material>
-  </visual>
-
-  <!-- Bottom Slant (Red) -->
-  <visual>
-    <geometry>
-      <box size="0.1 0.01 0.05"/>
-    </geometry>
-    <origin xyz="0.25 -0.015 0" rpy="0 0 0.7854"/>  <!-- +45° -->
-    <material name="red"/>
-  </visual>
-
-  <!-- Collision geometry (simple box) -->
-  <collision>
-    <geometry>
-      <box size="0.3 0.05 0.05"/>
-    </geometry>
-    <origin xyz="0.15 0 0"/>
-  </collision>
-
-  <inertial>
-    <mass value="1.0"/>
-    <inertia ixx="0.1" ixy="0.0" ixz="0.0"
-             iyy="0.1" iyz="0.0"
-             izz="0.1"/>
-  </inertial>
-
-</link>
-
-
-  <link name="gps">
-    <visual>
-      <geometry>
-        <sphere radius="0.03"/>
-      </geometry>
-      <material name="yellow">
-        <color rgba="1 1 0 1"/>
-      </material>
-    </visual>
-  </link>
-
-  <joint name="base_link_to_gps_link" type="fixed">
+  <joint name="footprint_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="gps"/>
-    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <child link="base_footprint"/>
+    <origin xyz="0 0 0"/>
   </joint>
+
 </robot>
