@@ -21,16 +21,16 @@ find_package(geographic_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 #find_package(GeographicLib REQUIRED)
 
-add_executable(rf src/rf.cpp)
-ament_target_dependencies(rf rclcpp std_msgs nav_msgs)
+#add_executable(rf src/rf.cpp)
+#ament_target_dependencies(rf rclcpp std_msgs nav_msgs)
 
 add_executable(gps src/gps.cpp)
 ament_target_dependencies(gps rclcpp sensor_msgs geometry_msgs nav_msgs tf2_ros tf2_geometry_msgs)
 
-add_executable(filter src/filter.cpp)
-ament_target_dependencies(filter rclcpp sensor_msgs geographic_msgs)
+#add_executable(filter src/filter.cpp)
+#ament_target_dependencies(filter rclcpp sensor_msgs geographic_msgs)
 
-target_link_libraries(filter Geographic)
+#target_link_libraries(filter Geographic)
 
 
 if(BUILD_TESTING)
@@ -46,9 +46,9 @@ if(BUILD_TESTING)
 endif()
 
 install(TARGETS
-  rf
+  #rf
   gps
-  filter
+  #filter
   DESTINATION lib/${PROJECT_NAME}
 )
 
