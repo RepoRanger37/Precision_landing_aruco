@@ -12,7 +12,11 @@ from rclpy.qos import qos_profile_sensor_data
 from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
 from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
+from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped
 from transforms3d.euler import euler2quat
+from tf_transformations import euler_from_quaternion, quaternion_from_euler
+
 
 
 ARDUPILOT_FLIGHT_MODES = {
@@ -28,7 +32,7 @@ class LandingTargetBridge(Node):
     def __init__(self):
         super().__init__('landing_target_bridge')
 
-        self.declare_parameter('baud', 57600)
+        self.declare_parameter('baud', 115200)
         self.declare_parameter('pose_topic', '/target_pose')
 
         self.baud = self.get_parameter('baud').value
@@ -58,6 +62,8 @@ class LandingTargetBridge(Node):
         self.compass_name_pub = self.create_publisher(String, '/compass', 10)
         self.imu_pub = self.create_publisher(Imu, '/drone_imu', 10)
         self.gps_fix_pub = self.create_publisher(NavSatFix, '/gps/fix', 10)
+        self.pose_pub = self.create_publisher(PoseStamped, '/drone/pose', 10)
+
         self.subscription = self.create_subscription(
             PoseStamped,
             pose_topic,
@@ -66,6 +72,13 @@ class LandingTargetBridge(Node):
         )
         self.get_logger().info(f"Subscribed to {pose_topic}")
 
+        self.tf_broadcaster = TransformBroadcaster(self)
+
+
+        self.home_lat = None
+        self.home_lon = None
+        self.last_orientation = None
+        self.last_vfr = None
         self.mavlink_thread = threading.Thread(target=self.mavlink_listener, daemon=True)
         self.mavlink_thread.start()
 
@@ -74,7 +87,7 @@ class LandingTargetBridge(Node):
         self.compass_info = {}
 
     def connect_to_mavlink(self):
-        port = "/dev/ttyUSB0"
+        port = "/dev/ttyACM0"
         while not self.connected and not self.stop_thread:
             self.get_logger().info(f"Trying to connect to {port} at {self.baud} baud...")
             try:
@@ -129,7 +142,10 @@ class LandingTargetBridge(Node):
             'GPS_RAW_INT': 5,
             'EKF_STATUS_REPORT': 1,
             'STATUSTEXT': 1,
-            'FENCE_STATUS': 1
+            'FENCE_STATUS': 1,
+            'ATTITUDE': 10,
+            'VFR_HUD': 5,
+            'GLOBAL_POSITION_INT': 5
         }
         for name, hz in messages.items():
             self.set_message_interval(name, hz)
@@ -152,7 +168,7 @@ class LandingTargetBridge(Node):
                         'HEARTBEAT', 'SCALED_RANGEFINDER', 'DISTANCE_SENSOR', 'RC_CHANNELS',
                         'FENCE_STATUS', 'BATTERY_STATUS', 'SCALED_IMU', 'SCALED_IMU2', 'SCALED_IMU3',
                         'STATUSTEXT', 'EKF_STATUS_REPORT', 'GLOBAL_POSITION_INT',
-                        'PARAM_VALUE', 'GPS_RAW_INT'
+                        'PARAM_VALUE', 'GPS_RAW_INT', 'ATTITUDE', 'VFR_HUD'
                     ],
                     blocking=True,
                     timeout=2.0
@@ -172,11 +188,11 @@ class LandingTargetBridge(Node):
                 #     self.handle_fence_status(msg)
                 elif msg_type == 'BATTERY_STATUS':
                     self.handle_battery_status(msg)
-                elif msg_type in ['SCALED_IMU', 'SCALED_IMU2', 'SCALED_IMU3']:
-                    self.handle_imu_values(msg)
+                # elif msg_type in ['SCALED_IMU', 'SCALED_IMU2', 'SCALED_IMU3']:
+                #     self.handle_imu_values(msg)
                 elif msg_type == 'STATUSTEXT':
+                    # handle STATUSTEXT messages
                     self.handle_statustext(msg)
-                # elif msg_type == 'EKF_STATUS_REPORT':
                 #     self.handle_ekf_status(msg)
                 elif msg_type == 'GLOBAL_POSITION_INT':
                     self.handle_gps(msg)
@@ -184,6 +200,10 @@ class LandingTargetBridge(Node):
                     self.handle_param_value(msg)
                 elif msg_type == 'GPS_RAW_INT':
                     self.handle_gps_raw(msg)
+                elif msg_type == 'ATTITUDE':
+                    self.handle_attitude(msg)
+                elif msg_type == 'VFR_HUD':
+                    self.handle_vfr_hud(msg)
 
             except Exception as e:
                 self.get_logger().warn(f"MAVLink communication lost: {e}. Reconnecting...")
@@ -220,6 +240,7 @@ class LandingTargetBridge(Node):
         elif msg.get_type() == 'DISTANCE_SENSOR':
             distance_m = msg.current_distance / 100.0
 
+        self.current_altitude = distance_m
         self.rangefinder_pub.publish(Float32(data=distance_m))
 
     def handle_rc_channels(self, msg):
@@ -236,14 +257,6 @@ class LandingTargetBridge(Node):
             self.rcin_ch6_pub.publish(Bool(data=is_ch6_active))
         else:
             self.get_logger().warn("chan6_raw not found in RC_CHANNELS message")
-
-    # def handle_fence_status(self, msg):
-    #     self.fence_enabled_pub.publish(Bool(data=(msg.breach_status != 0))
-
-    # def handle_fence_status(self, msg):
-    #     fence_enabled = (msg.breach_status != 0)
-    #     self.fence_enabled_pub.publish(Bool(data=fence_enabled))
-
 
     def request_fence_enable(self):
         if self.connected and self.vehicle:
@@ -297,82 +310,99 @@ class LandingTargetBridge(Node):
         self.get_logger().info(f"Active compass: {compass_name}")
         self.compass_name_pub.publish(String(data=compass_name))
 
-
-    def handle_imu_values(self, msg):
-        # Publish magnetic field magnitude
-        mag = math.sqrt(msg.xmag**2 + msg.ymag**2 + msg.zmag**2)
-        self.mag_field_pub.publish(Float32(data=mag))
-
-        # Publish gyro magnitude check
-        gyro_mag = math.sqrt(msg.xgyro**2 + msg.ygyro**2 + msg.zgyro**2)
-        self.gyro_ok_pub.publish(Bool(data=(gyro_mag < 4.0)))
-
-        # Compute roll & pitch from accelerometer (basic approximation)
-        try:
-             # Use correct field names
-            accel_x = msg.xacc / 1000.0
-            accel_y = msg.yacc / 1000.0
-            accel_z = msg.zacc / 1000.0
-
-            # Normalize gravity vector
-            norm = math.sqrt(accel_x**2 + accel_y**2 + accel_z**2)
-            if norm == 0:
-                raise ValueError("Zero norm for acceleration vector")
-            accel_x /= norm
-            accel_y /= norm
-            accel_z /= norm
-
-            # Estimate roll and pitch (yaw can't be determined from accel only)
-            roll = math.atan2(accel_y, accel_z)
-            pitch = math.atan2(-accel_x, math.sqrt(accel_y**2 + accel_z**2))
-
-            # Convert to quaternion
-            from transforms3d.euler import euler2quat
-            q = euler2quat(roll, pitch, 0.0)  # yaw is unknown
-
-            imu_msg = Imu()
-            imu_msg.header.stamp = self.get_clock().now().to_msg()
-            imu_msg.header.frame_id = 'base_link'
-            imu_msg.orientation.x = q[1]
-            imu_msg.orientation.y = q[2]
-            imu_msg.orientation.z = q[3]
-            imu_msg.orientation.w = q[0]
-
-            # Optionally add raw gyro/mag data if available
-            if hasattr(msg, 'xgyro'):
-                imu_msg.angular_velocity.x = msg.xgyro / 1000.0
-            if hasattr(msg, 'ygyro'):
-                imu_msg.angular_velocity.y = msg.ygyro / 1000.0
-            if hasattr(msg, 'zgyro'):
-                imu_msg.angular_velocity.z = msg.zgyro / 1000.0
-
-            if hasattr(msg, 'xmag'):
-                imu_msg.linear_acceleration.x = accel_x
-            if hasattr(msg, 'ymag'):
-                imu_msg.linear_acceleration.y = accel_y
-            if hasattr(msg, 'zmag'):
-                imu_msg.linear_acceleration.z = accel_z
-
-            self.imu_pub.publish(imu_msg)
-
-        except Exception as e:
-            self.get_logger().warn(f"Failed to compute orientation: {e}")
-
-
     def handle_statustext(self, msg):
         text = msg.text.lower()
         if "external compass" in text:
             self.external_compass_pub.publish(String(data=text))
 
-    # def handle_ekf_status(self, msg):
-    #     gyro_ok = (msg.flags & 0x01) != 0
-    #     self.gyro_ok_pub.publish(Bool(data=gyro_ok))
 
     def handle_gps(self, msg):
         lat = msg.lat / 1e7 
         lon = msg.lon / 1e7
         alt = msg.alt / 1000.0
         # self.get_logger().info(f"GPS Location: Lat={lat}, Lon={lon}, Alt={alt}m")
+
+        if self.home_lat is None:
+            self.home_lat = lat
+            self.home_lon = lon
+
+        # Convert to local ENU
+        R = 6378137.0
+        dlat = math.radians(lat - self.home_lat)
+        dlon = math.radians(lon - self.home_lon)
+        x = R * dlon * math.cos(math.radians((lat + self.home_lat) / 2))
+        y = R * dlat
+        z = alt
+
+        pose = PoseStamped()
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.header.frame_id = 'map'
+        pose.pose.position.x = x
+        pose.pose.position.y = y
+        pose.pose.position.z = z
+
+        # If we already have orientation from ATTITUDE, attach it
+        if self.last_orientation:
+            pose.pose.orientation = self.last_orientation
+        else:
+            pose.pose.orientation.w = 1.0
+
+        self.pose_pub.publish(pose)
+
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'map'
+        t.child_frame_id = 'base_link'
+        t.transform.translation.x = x
+        t.transform.translation.y = y
+        t.transform.translation.z = getattr(self, 'current_altitude', 0.0)
+        if self.last_orientation:
+            t.transform.rotation = self.last_orientation
+        else:
+            t.transform.rotation.w = 1.0
+        self.tf_broadcaster.sendTransform(t)
+
+
+    def handle_attitude(self, msg):
+        roll, pitch, yaw = -msg.roll, -msg.pitch, -msg.yaw + math.pi/2
+
+
+        q = quaternion_from_euler(roll, pitch, yaw)
+
+        imu = Imu()
+        imu.header.stamp = self.get_clock().now().to_msg()
+        imu.header.frame_id = 'base_link'
+        imu.orientation.x = q[0]
+        imu.orientation.y = q[1]
+        imu.orientation.z = q[2]
+        imu.orientation.w = q[3]
+
+        imu.angular_velocity.x = msg.rollspeed
+        imu.angular_velocity.y = msg.pitchspeed
+        imu.angular_velocity.z = msg.yawspeed
+
+        # Add last known linear acceleration (approx from VFR_HUD)
+        if self.last_vfr:
+            imu.linear_acceleration.x = self.last_vfr['airspeed']
+            imu.linear_acceleration.z = -self.last_vfr['climb']
+
+        self.imu_pub.publish(imu)
+
+        # Save orientation for use in pose
+        from geometry_msgs.msg import Quaternion
+        q_msg = Quaternion()
+        q_msg.x, q_msg.y, q_msg.z, q_msg.w = q[0], q[1], q[2], q[3]
+        self.last_orientation = q_msg
+
+    def handle_vfr_hud(self, msg):
+        self.last_vfr = {
+            'airspeed': msg.airspeed,
+            'groundspeed': msg.groundspeed,
+            'heading': msg.heading,
+            'throttle': msg.throttle,
+            'alt': msg.alt,
+            'climb': msg.climb
+        }
 
     def handle_param_value(self, msg):
         try:
@@ -423,12 +453,6 @@ class LandingTargetBridge(Node):
 
         # Populate NavSatFix
         gps_msg = NavSatFix()
-        gps_msg.header.stamp = self.get_clock().now().to_msg()
-        gps_msg.header.frame_id = "gps"
-
-        gps_msg.latitude = msg.lat / 1e7
-        gps_msg.longitude = msg.lon / 1e7
-        gps_msg.altitude = msg.alt / 1000.0  # mm to meters
 
         gps_msg.status.service = NavSatStatus.SERVICE_GPS
         gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
@@ -439,10 +463,6 @@ class LandingTargetBridge(Node):
         if fix_type >= 5:
             gps_msg.status.status = NavSatStatus.STATUS_GBAS_FIX
 
-        # Optionally set position covariance if known
-        gps_msg.position_covariance_type = NavSatFix.COVARIANCE_TYPE_UNKNOWN
-
-        self.gps_fix_pub.publish(gps_msg)
 
     def pose_callback(self, msg: PoseStamped):
         if not self.connected:
@@ -496,3 +516,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+

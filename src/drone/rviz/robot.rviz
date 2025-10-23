@@ -12,8 +12,12 @@ Panels:
         - /Odometry2
         - /Odometry2/Shape1
         - /AerialMap1
+        - /Attitude1
+        - /Attitude1/Show Overlay1
+        - /Path1
+        - /Path1/Topic1
       Splitter Ratio: 0.5
-    Tree Height: 530
+    Tree Height: 1897
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -79,6 +83,26 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        arm_bl:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        arm_br:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        arm_fl:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        arm_fr:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         base_footprint:
           Alpha: 1
           Show Axes: false
@@ -90,6 +114,11 @@ Visualization Manager:
           Show Trail: false
           Value: true
         gps:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        rotor_fl:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -194,7 +223,9 @@ Visualization Manager:
         Value: ""
       Value: false
       Visibility:
+        "": true
         AerialMap: true
+        Attitude: true
         Grid: true
         Odometry: true
         RobotModel: true
@@ -217,10 +248,54 @@ Visualization Manager:
         Value: /gps/fix
       Value: true
       Zoom: 16
+    - Angle Units: Radians
+      Class: rviz_attitude_plugin/Attitude
+      Current Type: geometry_msgs/msg/PoseStamped
+      Display Mode: Full
+      Enabled: true
+      Name: Attitude
+      Refresh Topics: false
+      Show Overlay:
+        Overlay Anchor: Bottom Right
+        Overlay Height: 258
+        Overlay Width: 340
+        Overlay X: 55
+        Overlay Y: 20
+        Value: true
+      Topic: /drone/pose
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz_default_plugins/Path
+      Color: 25; 255; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep All
+        Reliability Policy: Reliable
+        Value: /traj_pub
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: odom
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -263,25 +338,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/XYOrbit
-      Distance: 1.375780463218689
+      Distance: 13.05366325378418
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.22778606414794922
-        Y: -3.0147204399108887
-        Z: -1.2909280485473573e-05
+        X: 1.6433796882629395
+        Y: -2.913703203201294
+        Z: -2.101644713548012e-05
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3947981595993042
+      Pitch: 0.40479767322540283
       Target Frame: <Fixed Frame>
       Value: XYOrbit (rviz_default_plugins)
-      Yaw: 4.882387638092041
+      Yaw: 5.3273701667785645
     Saved:
       - Class: rviz_default_plugins/XYOrbit
         Distance: 9.739856719970703
@@ -308,10 +383,10 @@ Window Geometry:
     collapsed: false
   Displays:
     collapsed: false
-  Height: 863
+  Height: 2230
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001f70000030afc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c00610079007301000000270000030a0000018200fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000100044006900730070006c0061007900730000000016000003110000018200ffffff000000010000010f000002eafc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d000002ea0000013200fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000640000000a9fc0100000002fb0000000c00430061006d00650072006102000000000000012f00000640000000a9fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000006400000003efc0100000002fb0000000800540069006d00650000000000000006400000058100fffffffb0000000800540069006d006501000000000000045000000000000000000000043d0000030a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730000000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000039800000861fc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730000000027000008610000018200fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000100044006900730070006c0061007900730000000016000003110000018200ffffff000000010000010f000002eafc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d000002ea0000013200fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000640000000a9fc0100000002fb0000000c00430061006d00650072006102000000000000012f00000640000000a9fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000006400000003efc0100000002fb0000000800540069006d00650000000000000006400000058100fffffffb0000000800540069006d00650100000000000004500000000000000000000010000000086100000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730000000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -320,6 +395,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1600
-  X: 0
-  Y: 54
+  Width: 4096
+  X: 3200
+  Y: 0

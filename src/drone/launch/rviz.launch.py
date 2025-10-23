@@ -21,27 +21,24 @@ def generate_launch_description():
             parameters=[{'robot_description': robot_desc}],
             output='screen'
         ),
+        # Node(
+        #     package='robot_localization',
+        #     executable='ekf_node',
+        #     name='ekf_filter_node',
+        #     parameters=[os.path.join(pkg_share, 'config', 'ekf.yaml')],
+        #     output='screen'
+        # ),
+        # Node(
+        #     package='robot_localization',
+        #     executable='navsat_transform_node',
+        #     name='navsat_transform_node',
+        #     parameters=[os.path.join(pkg_share, 'config', 'navsat.yaml')],
+        #     output='screen'
+        # ),
         Node(
-             package='drone',
-             executable='rf',
-             name='rf_node',
-             output='screen',
-             parameters=[{'base_frame_id': 'base_link',
-                          'z_covariance': 0.1
-             }]
-         ),
-        Node(
-            package='robot_localization',
-            executable='ekf_node',
-            name='ekf_filter_node',
-            parameters=[os.path.join(pkg_share, 'config', 'ekf.yaml')],
-            output='screen'
-        ),
-        Node(
-            package='robot_localization',
-            executable='navsat_transform_node',
-            name='navsat_transform_node',
-            parameters=[os.path.join(pkg_share, 'config', 'navsat.yaml')],
+            package='drone',
+            executable='gps',
+            name='gps_node',
             output='screen'
         ),
         Node(
