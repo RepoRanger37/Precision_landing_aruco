@@ -32,7 +32,7 @@ class LandingTargetBridge(Node):
     def __init__(self):
         super().__init__('landing_target_bridge')
 
-        self.declare_parameter('baud', 115200)
+        self.declare_parameter('baud', 57600)
         self.declare_parameter('pose_topic', '/target_pose')
 
         self.baud = self.get_parameter('baud').value
