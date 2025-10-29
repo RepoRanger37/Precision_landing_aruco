@@ -63,6 +63,7 @@ class LandingTargetBridge(Node):
         self.imu_pub = self.create_publisher(Imu, '/drone_imu', 10)
         self.gps_fix_pub = self.create_publisher(NavSatFix, '/gps/fix', 10)
         self.pose_pub = self.create_publisher(PoseStamped, '/drone/pose', 10)
+        self.heading_pub = self.create_publisher(Float32, '/drone/heading', 10)
 
         self.subscription = self.create_subscription(
             PoseStamped,
@@ -87,7 +88,7 @@ class LandingTargetBridge(Node):
         self.compass_info = {}
 
     def connect_to_mavlink(self):
-        port = "/dev/ttyACM0"
+        port = "/dev/ttyUSB0"
         while not self.connected and not self.stop_thread:
             self.get_logger().info(f"Trying to connect to {port} at {self.baud} baud...")
             try:
@@ -403,6 +404,10 @@ class LandingTargetBridge(Node):
             'alt': msg.alt,
             'climb': msg.climb
         }
+        heading = msg.heading
+        heading_msg = Float32()
+        heading_msg.data = float(heading)
+        self.heading_pub.publish(heading_msg)
 
     def handle_param_value(self, msg):
         try:

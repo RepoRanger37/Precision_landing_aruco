@@ -1,89 +1,135 @@
-#include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/nav_sat_fix.hpp"
-#include <GeographicLib/LocalCartesian.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
-class GPSSmootherNode : public rclcpp::Node
+class MarkerVisualizer : public rclcpp::Node
 {
 public:
-  GPSSmootherNode()
-  : Node("gps_smoother_node"),
-    alpha_(declare_parameter("alpha", 0.9)),
-    origin_set_(false),
-    initialized_(false)
+  MarkerVisualizer() : Node("marker_visualizer")
   {
-    gps_sub_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
-      "/gps/raw", 10,
-      std::bind(&GPSSmootherNode::gpsCallback, this, std::placeholders::_1)
-    );
+    marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(
+      "/aruco_marker_visualization", 10);
 
-    gps_pub_ = this->create_publisher<sensor_msgs::msg::NavSatFix>(
-      "/gps/fix", 10
-    );
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+      "/target_pose", 10,
+      std::bind(&MarkerVisualizer::poseCallback, this, std::placeholders::_1));
 
-    RCLCPP_INFO(this->get_logger(), "✅ GPS Smoother Node Started");
+    target_status_pub_ = this->create_publisher<std_msgs::msg::Bool>(
+      "/target_visible", 10);
+
+    // Timer checks visibility every 200 ms
+    check_timer_ = this->create_wall_timer(
+      std::chrono::milliseconds(200),
+      std::bind(&MarkerVisualizer::checkVisibility, this));
+
+    last_seen_time_ = this->now();
+    target_visible_ = false;
+
+    timeout_sec_ = this->declare_parameter("timeout_sec", 1.0);
+
+    RCLCPP_INFO(get_logger(), "Marker Visualizer Node started!");
   }
 
 private:
-  void gpsCallback(const sensor_msgs::msg::NavSatFix::SharedPtr msg)
+  void poseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
   {
-    if (msg->status.status < 0) {
-      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "⚠️ No GPS fix.");
-      return;
-    }
+    last_seen_time_ = this->now();
+    target_visible_ = true;
 
-    if (!origin_set_) {
-      origin_ = GeographicLib::LocalCartesian(msg->latitude, msg->longitude, msg->altitude);
-      origin_set_ = true;
-      RCLCPP_INFO(this->get_logger(), "🧭 Origin set to lat=%.8f lon=%.8f alt=%.2f",
-                  msg->latitude, msg->longitude, msg->altitude);
-    }
+    double cz = msg->pose.position.z + 0.01;
 
-    double x, y, z;
-    origin_.Forward(msg->latitude, msg->longitude, msg->altitude, x, y, z);
+    // --- Outer black square ---
+    visualization_msgs::msg::Marker box;
+    box.header = msg->header;
+    box.ns = "landing_pad_box";
+    box.id = 0;
+    box.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    box.action = visualization_msgs::msg::Marker::ADD;
+    box.scale.x = 0.05;
+    box.color.r = 0.0;
+    box.color.g = 0.0;
+    box.color.b = 0.0;
+    box.color.a = 1.0;
+    box.lifetime = rclcpp::Duration::from_seconds(0.5);
 
-    if (!initialized_) {
-      smoothed_x_ = x;
-      smoothed_y_ = y;
-      smoothed_z_ = z;
-      initialized_ = true;
-    } else {
-      smoothed_x_ = alpha_ * smoothed_x_ + (1.0 - alpha_) * x;
-      smoothed_y_ = alpha_ * smoothed_y_ + (1.0 - alpha_) * y;
-      smoothed_z_ = z;  // no smoothing for Z
-    }
+    double box_size = 0.25;
+    geometry_msgs::msg::Point p;
+    p.z = cz;
 
-    double lat, lon, alt;
-    origin_.Reverse(smoothed_x_, smoothed_y_, smoothed_z_, lat, lon, alt);
+    p.x = msg->pose.position.x - box_size; p.y = msg->pose.position.y - box_size; box.points.push_back(p);
+    p.x = msg->pose.position.x + box_size; p.y = msg->pose.position.y - box_size; box.points.push_back(p);
+    p.x = msg->pose.position.x + box_size; p.y = msg->pose.position.y + box_size; box.points.push_back(p);
+    p.x = msg->pose.position.x - box_size; p.y = msg->pose.position.y + box_size; box.points.push_back(p);
+    p.x = msg->pose.position.x - box_size; p.y = msg->pose.position.y - box_size; box.points.push_back(p);
 
-    auto filtered_msg = *msg;
-    filtered_msg.latitude = lat;
-    filtered_msg.longitude = lon;
-    filtered_msg.altitude = alt;
+    marker_pub_->publish(box);
 
-    // Optional: Adjust covariance to reflect smoother confidence
-    filtered_msg.position_covariance[0] = 2.0;   // x
-    filtered_msg.position_covariance[4] = 2.0;   // y
-    filtered_msg.position_covariance[8] = 0.5;   // z
-    filtered_msg.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+    // --- Red H ---
+    visualization_msgs::msg::Marker h_marker;
+    h_marker.header = msg->header;
+    h_marker.ns = "landing_pad_H";
+    h_marker.id = 1;
+    h_marker.type = visualization_msgs::msg::Marker::LINE_LIST;
+    h_marker.action = visualization_msgs::msg::Marker::ADD;
+    h_marker.scale.x = 0.02;
+    h_marker.color.r = 1.0;
+    h_marker.color.a = 1.0;
+    h_marker.lifetime = rclcpp::Duration::from_seconds(0.5);
 
-    gps_pub_->publish(filtered_msg);
+    double half_w = 0.15;
+    double half_h = 0.15;
+    double cross_w = 0.05;
+
+    // Left vertical
+    p.x = msg->pose.position.x - half_w; p.y = msg->pose.position.y - half_h; p.z = cz; h_marker.points.push_back(p);
+    p.x = msg->pose.position.x - half_w; p.y = msg->pose.position.y + half_h; p.z = cz; h_marker.points.push_back(p);
+
+    // Right vertical
+    p.x = msg->pose.position.x + half_w; p.y = msg->pose.position.y - half_h; p.z = cz; h_marker.points.push_back(p);
+    p.x = msg->pose.position.x + half_w; p.y = msg->pose.position.y + half_h; p.z = cz; h_marker.points.push_back(p);
+
+    // Horizontal
+    p.x = msg->pose.position.x - cross_w; p.y = msg->pose.position.y; p.z = cz; h_marker.points.push_back(p);
+    p.x = msg->pose.position.x + cross_w; p.y = msg->pose.position.y; p.z = cz; h_marker.points.push_back(p);
+
+    marker_pub_->publish(h_marker);
   }
 
-  rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr gps_sub_;
-  rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr gps_pub_;
+  void checkVisibility()
+  {
+    auto now = this->now();
+    double elapsed = (now - last_seen_time_).seconds();
 
-  double alpha_;
-  bool origin_set_;
-  bool initialized_;
-  double smoothed_x_, smoothed_y_, smoothed_z_;
+    bool currently_visible = elapsed < timeout_sec_;
+    if (currently_visible != target_visible_) {
+      target_visible_ = currently_visible;
+      // RCLCPP_INFO(get_logger(), "Target visibility changed: %s",
+      //             target_visible_ ? "TRUE" : "FALSE");
+    }
 
-  GeographicLib::LocalCartesian origin_;
+    // Publish current state *every timer tick*
+    std_msgs::msg::Bool status_msg;
+    status_msg.data = currently_visible;
+    target_status_pub_->publish(status_msg);
+  }
+
+  // Publishers/Subscribers
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr target_status_pub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+  rclcpp::TimerBase::SharedPtr check_timer_;
+
+  // Tracking variables
+  rclcpp::Time last_seen_time_;
+  bool target_visible_;
+  double timeout_sec_;
 };
 
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<GPSSmootherNode>());
+  rclcpp::spin(std::make_shared<MarkerVisualizer>());
   rclcpp::shutdown();
   return 0;
 }

@@ -15,22 +15,27 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(geographic_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(rviz_2d_overlay_msgs REQUIRED)
 #find_package(GeographicLib REQUIRED)
 
-#add_executable(rf src/rf.cpp)
-#ament_target_dependencies(rf rclcpp std_msgs nav_msgs)
+add_executable(rf src/rf.cpp)
+ament_target_dependencies(rf rclcpp std_msgs nav_msgs)
 
 add_executable(gps src/gps.cpp)
 ament_target_dependencies(gps rclcpp sensor_msgs geometry_msgs nav_msgs tf2_ros tf2_geometry_msgs)
 
-#add_executable(filter src/filter.cpp)
-#ament_target_dependencies(filter rclcpp sensor_msgs geographic_msgs)
+add_executable(filter src/filter.cpp)
+ament_target_dependencies(filter rclcpp geometry_msgs tf2 tf2_ros tf2_geometry_msgs visualization_msgs)
 
-#target_link_libraries(filter Geographic)
+add_executable(text src/text.cpp)
+ament_target_dependencies(text rclcpp std_msgs rviz_2d_overlay_msgs)
+
+target_link_libraries(filter Geographic)
 
 
 if(BUILD_TESTING)
@@ -46,9 +51,10 @@ if(BUILD_TESTING)
 endif()
 
 install(TARGETS
-  #rf
+  rf
   gps
-  #filter
+  filter
+  text
   DESTINATION lib/${PROJECT_NAME}
 )
 

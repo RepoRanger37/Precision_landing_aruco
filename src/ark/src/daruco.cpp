@@ -19,6 +19,9 @@
 #include <opencv2/calib3d.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include "tf2/LinearMath/Quaternion.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+
 
 class ArucoDetectorNode : public rclcpp::Node {
 public:
@@ -26,10 +29,16 @@ public:
     declare_parameter<std::string>("camera_topic", "/camera");
     declare_parameter<std::string>("camera_info_topic", "/camera_info");
     declare_parameter<int>("dictionary_id", cv::aruco::DICT_4X4_250);
+    declare_parameter<std::string>("target_frame", "base_link");
 
     std::string camera_topic = get_parameter("camera_topic").as_string();
     std::string camera_info_topic = get_parameter("camera_info_topic").as_string();
     int dictionary_id = get_parameter("dictionary_id").as_int();
+    target_frame_ = get_parameter("target_frame").as_string();
+
+    // Initialize TF2
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     marker_sizes_ = {
       {0, 0.25},  // Marker ID 0 → 0.256m
@@ -116,6 +125,9 @@ public:
     flight_mode_ = "UNKNOWN";
 
     RCLCPP_INFO(get_logger(), "Aruco detector node initialized");
+
+    // --- Add these for full-screen OpenCV window ---
+    cv::namedWindow("ARuco View", cv::WINDOW_NORMAL);
   }
 
 private:
@@ -129,6 +141,10 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_status_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr recording_status_sub_;
+
+  // TF2
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // Fence and system diagnostics
   bool fence_enabled_ = false;
@@ -168,6 +184,8 @@ private:
 
   bool armed_;
   std::string flight_mode_;
+  std::string target_frame_;
+
 
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
     if (!camera_info_received_) {
@@ -288,7 +306,8 @@ private:
           m.getRotation(q);
 
           geometry_msgs::msg::PoseStamped pose_msg;
-          pose_msg.header = msg->header;
+          pose_msg.header.stamp = this->now();
+          pose_msg.header.frame_id = "cam_down_link";
           pose_msg.pose.position.x = current_tvec[0];
           pose_msg.pose.position.y = current_tvec[1];
           pose_msg.pose.position.z = current_tvec[2];
@@ -315,6 +334,10 @@ private:
     out_msg.encoding = sensor_msgs::image_encodings::BGR8;
     out_msg.image = image;
     image_pub_.publish(out_msg.toImageMsg());
+
+    cv::imshow("ARuco View", image);
+    cv::resizeWindow("ARuco View", image.cols, image.rows);
+    cv::waitKey(1);
   }
 
   void drawCoordinates(cv::Mat &image, const cv::Vec3d &tvec, bool detected, float error_percent, int marker_id) {
@@ -437,7 +460,7 @@ private:
   y += 30;
 
   // Gyro
-  cv::putText(image, std::string("GYRO") + (gyro_ok_ ? "YES" : "NO"),
+  cv::putText(image, std::string("GYRO ") + (gyro_ok_ ? "YES" : "NO"),
               cv::Point(10, y), cv::FONT_HERSHEY_SIMPLEX, font_scale, gyro_ok_ ? green : red, thickness);
   y += 30;
 

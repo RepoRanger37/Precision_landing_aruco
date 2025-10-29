@@ -143,4 +143,24 @@
     <origin xyz="0 0 0"/>
   </joint>
 
+<!-- Camera Link (Downward Facing) -->
+<link name="cam_down_link">
+  <visual>
+    <geometry>
+      <box size="0.05 0.05 0.02"/> <!-- Small box for camera visualization -->
+    </geometry>
+    <origin xyz="0 0 0"/>
+    <material name="green">
+      <color rgba="0 1 0 1"/>
+    </material>
+  </visual>
+</link>
+<joint name="cam_down_joint" type="fixed">
+  <parent link="base_link"/>
+  <child link="cam_down_link"/>
+  <origin xyz="0 0 -0.1" rpy="3.14159 0 -1.570795"/> <!-- 0.1m below base_link, rotated 180° around X to face downward -->
+</joint>
+  
+
+
 </robot>
