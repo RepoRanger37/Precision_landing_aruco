@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Float32, Bool, String, Int32
-import math
-from pymavlink import mavutil
-import time
-import threading
-from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Image, CameraInfo, Imu, NavSatFix, NavSatStatus
 from nav_msgs.msg import Path
 from visualization_msgs.msg import Marker
-from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
 from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
-from transforms3d.euler import euler2quat
 from tf_transformations import euler_from_quaternion, quaternion_from_euler
+from transforms3d.euler import euler2quat
+import math
+import time
+import threading
+import numpy as np
+import cv2
+from cv_bridge import CvBridge
+from pymavlink import mavutil
+from rclpy.qos import qos_profile_sensor_data
 
-
-
+# ----------------------------------------------------------------------
+# ArduPilot flight mode table
+# ----------------------------------------------------------------------
 ARDUPILOT_FLIGHT_MODES = {
     0: "STABILIZE", 1: "ACRO", 2: "ALT_HOLD", 3: "AUTO", 4: "GUIDED",
     5: "LOITER", 6: "RTL", 7: "CIRCLE", 9: "LAND", 11: "DRIFT", 13: "SPORT",
@@ -27,23 +29,32 @@ ARDUPILOT_FLIGHT_MODES = {
     23: "FOLLOW", 24: "ZIGZAG", 25: "SYSTEMID", 26: "AUTOROTATE", 27: "AUTO_RTL"
 }
 
-
+# ----------------------------------------------------------------------
+# Combined node
+# ----------------------------------------------------------------------
 class LandingTargetBridge(Node):
     def __init__(self):
         super().__init__('landing_target_bridge')
 
+        # ------------------------------------------------------------------
+        # Parameters
+        # ------------------------------------------------------------------
         self.declare_parameter('baud', 57600)
         self.declare_parameter('pose_topic', '/target_pose')
-
         self.baud = self.get_parameter('baud').value
         pose_topic = self.get_parameter('pose_topic').value
 
+        # ------------------------------------------------------------------
+        # MAVLink handling
+        # ------------------------------------------------------------------
         self.vehicle = None
         self.connected = False
         self.stop_thread = False
         self.device = None
 
-        # Publishers
+        # ------------------------------------------------------------------
+        # Publishers (original bridge)
+        # ------------------------------------------------------------------
         self.flight_mode_pub = self.create_publisher(String, '/flight_mode', 10)
         self.armed_status_pub = self.create_publisher(Bool, '/armed_status', 10)
         self.land_armed_pub = self.create_publisher(Bool, '/land_armed_status', 10)
@@ -64,7 +75,11 @@ class LandingTargetBridge(Node):
         self.gps_fix_pub = self.create_publisher(NavSatFix, '/gps/fix', 10)
         self.pose_pub = self.create_publisher(PoseStamped, '/drone/pose', 10)
         self.heading_pub = self.create_publisher(Float32, '/drone/heading', 10)
+        self.compass_use_pub = self.create_publisher(Bool, '/compass_use', 10)
 
+        # ------------------------------------------------------------------
+        # Subscriptions (original + optical flow)
+        # ------------------------------------------------------------------
         self.subscription = self.create_subscription(
             PoseStamped,
             pose_topic,
@@ -73,20 +88,52 @@ class LandingTargetBridge(Node):
         )
         self.get_logger().info(f"Subscribed to {pose_topic}")
 
+        # ---- Optical Flow -------------------------------------------------
+        self.bridge = CvBridge()
+        self.prev_gray = None
+        self.prev_time = None
+
+        self.focal_length_x = None      # fx (pixels)
+        self.focal_length_y = None      # fy (pixels)
+        self.cx = None
+        self.cy = None
+
+        self.latest_distance = 0.0      # ground distance (m) from rangefinder
+        self.distance_lock = threading.Lock()
+
+        self.create_subscription(
+            Image, '/camera', self.image_callback, 10)
+        self.create_subscription(
+            CameraInfo, '/camera_info', self.camera_info_callback, 10)
+
+        # ------------------------------------------------------------------
+        # TF broadcaster
+        # ------------------------------------------------------------------
         self.tf_broadcaster = TransformBroadcaster(self)
 
-
+        # ------------------------------------------------------------------
+        # State variables
+        # ------------------------------------------------------------------
         self.home_lat = None
         self.home_lon = None
         self.last_orientation = None
         self.last_vfr = None
-        self.mavlink_thread = threading.Thread(target=self.mavlink_listener, daemon=True)
-        self.mavlink_thread.start()
-
-        self.timer = self.create_timer(1.0, self.periodic_tasks)
-
+        self.last_mode = None
+        self.last_mode_time = time.time()
         self.compass_info = {}
 
+        # ------------------------------------------------------------------
+        # Threads / timers
+        # ------------------------------------------------------------------
+        self.mavlink_thread = threading.Thread(target=self.mavlink_listener, daemon=True)
+        self.mavlink_thread.start()
+        self.timer = self.create_timer(1.0, self.periodic_tasks)
+
+        self.get_logger().info("LandingTargetBridge + OpticalFlow started")
+
+    # ==================================================================
+    # MAVLink connection & stream requests
+    # ==================================================================
     def connect_to_mavlink(self):
         port = "/dev/ttyUSB0"
         while not self.connected and not self.stop_thread:
@@ -102,9 +149,8 @@ class LandingTargetBridge(Node):
                 self.last_mode = None
                 self.last_mode_time = time.time()
                 self.fence_check_timer = self.create_timer(10.0, self.request_fence_enable)
-                self.compass_use_pub = self.create_publisher(Bool, '/compass_use', 10)
 
-                # Request full parameter list
+                # Request full param list (for compass, fence, etc.)
                 self.vehicle.mav.param_request_list_send(
                     self.vehicle.target_system,
                     self.vehicle.target_component
@@ -123,9 +169,7 @@ class LandingTargetBridge(Node):
                 self.vehicle.target_component,
                 mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
                 0,
-                msg_id,
-                interval_us,
-                0, 0, 0, 0, 0
+                msg_id, interval_us, 0, 0, 0, 0, 0
             )
             self.get_logger().info(f"Requested {msg_name} at {rate_hz} Hz")
         except Exception as e:
@@ -152,11 +196,11 @@ class LandingTargetBridge(Node):
             self.set_message_interval(name, hz)
 
     def request_rc_channels(self):
-        try:
-            self.set_message_interval('RC_CHANNELS', 2)
-        except Exception as e:
-            self.get_logger().error(f"Failed to request RC_CHANNELS: {e}")
+        self.set_message_interval('RC_CHANNELS', 2)
 
+    # ==================================================================
+    # MAVLink listener (receives all messages, including rangefinder)
+    # ==================================================================
     def mavlink_listener(self):
         self.get_logger().info("Starting MAVLink listener thread.")
         while not self.stop_thread and rclpy.ok():
@@ -166,8 +210,9 @@ class LandingTargetBridge(Node):
             try:
                 msg = self.vehicle.recv_match(
                     type=[
-                        'HEARTBEAT', 'SCALED_RANGEFINDER', 'DISTANCE_SENSOR', 'RC_CHANNELS',
-                        'FENCE_STATUS', 'BATTERY_STATUS', 'SCALED_IMU', 'SCALED_IMU2', 'SCALED_IMU3',
+                        'HEARTBEAT', 'SCALED_RANGEFINDER', 'DISTANCE_SENSOR',
+                        'RC_CHANNELS', 'FENCE_STATUS', 'BATTERY_STATUS',
+                        'SCALED_IMU', 'SCALED_IMU2', 'SCALED_IMU3',
                         'STATUSTEXT', 'EKF_STATUS_REPORT', 'GLOBAL_POSITION_INT',
                         'PARAM_VALUE', 'GPS_RAW_INT', 'ATTITUDE', 'VFR_HUD'
                     ],
@@ -178,23 +223,16 @@ class LandingTargetBridge(Node):
                     continue
 
                 msg_type = msg.get_type()
-
                 if msg_type == 'HEARTBEAT':
                     self.handle_heartbeat(msg)
                 elif msg_type in ['SCALED_RANGEFINDER', 'DISTANCE_SENSOR']:
                     self.handle_rangefinder(msg)
                 elif msg_type == 'RC_CHANNELS':
                     self.handle_rc_channels(msg)
-                # elif msg_type == 'FENCE_STATUS':
-                #     self.handle_fence_status(msg)
                 elif msg_type == 'BATTERY_STATUS':
                     self.handle_battery_status(msg)
-                # elif msg_type in ['SCALED_IMU', 'SCALED_IMU2', 'SCALED_IMU3']:
-                #     self.handle_imu_values(msg)
                 elif msg_type == 'STATUSTEXT':
-                    # handle STATUSTEXT messages
                     self.handle_statustext(msg)
-                #     self.handle_ekf_status(msg)
                 elif msg_type == 'GLOBAL_POSITION_INT':
                     self.handle_gps(msg)
                 elif msg_type == 'PARAM_VALUE':
@@ -211,6 +249,9 @@ class LandingTargetBridge(Node):
                 self.connected = False
                 time.sleep(2)
 
+    # ==================================================================
+    # Message handlers (original bridge)
+    # ==================================================================
     def handle_heartbeat(self, msg):
         system_status = msg.system_status
         base_mode = msg.base_mode
@@ -218,46 +259,37 @@ class LandingTargetBridge(Node):
         autopilot = msg.autopilot
         mav_type = msg.type
 
-    # Only process modes from the actual flight controller (e.g., copter, plane)
-        if autopilot == mavutil.mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA and mav_type in [mavutil.mavlink.MAV_TYPE_QUADROTOR, mavutil.mavlink.MAV_TYPE_GENERIC]:
-
+        if autopilot == mavutil.mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA and \
+           mav_type in [mavutil.mavlink.MAV_TYPE_QUADROTOR, mavutil.mavlink.MAV_TYPE_GENERIC]:
             mode_str = ARDUPILOT_FLIGHT_MODES.get(custom_mode, f"UNKNOWN({custom_mode})")
-
-        # Prevent flickering: only publish if mode actually changed or enough time passed
             if mode_str != self.last_mode or (time.time() - self.last_mode_time) > 2:
                 self.flight_mode_pub.publish(String(data=mode_str))
                 self.last_mode = mode_str
                 self.last_mode_time = time.time()
-
             is_armed = (base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
             self.armed_status_pub.publish(Bool(data=is_armed))
             self.land_armed_pub.publish(Bool(data=(mode_str == "LAND" and is_armed)))
             self.land_disarmed_pub.publish(Bool(data=(mode_str == "LAND" and not is_armed)))
 
     def handle_rangefinder(self, msg):
+        """Updates internal distance (used by optical flow) and publishes."""
         distance_m = 0.0
         if msg.get_type() == 'SCALED_RANGEFINDER':
             distance_m = msg.distance / 100.0
         elif msg.get_type() == 'DISTANCE_SENSOR':
             distance_m = msg.current_distance / 100.0
 
+        with self.distance_lock:
+            self.latest_distance = distance_m
+
         self.current_altitude = distance_m
         self.rangefinder_pub.publish(Float32(data=distance_m))
 
     def handle_rc_channels(self, msg):
-        # Channel 8
         if hasattr(msg, 'chan8_raw'):
-            is_ch8_active = msg.chan8_raw > 1500
-            self.rcin_ch8_pub.publish(Bool(data=is_ch8_active))
-        else:
-            self.get_logger().warn("chan8_raw not found in RC_CHANNELS message")
-
-    # Channel 6
+            self.rcin_ch8_pub.publish(Bool(data=msg.chan8_raw > 1500))
         if hasattr(msg, 'chan6_raw'):
-            is_ch6_active = msg.chan6_raw > 1500
-            self.rcin_ch6_pub.publish(Bool(data=is_ch6_active))
-        else:
-            self.get_logger().warn("chan6_raw not found in RC_CHANNELS message")
+            self.rcin_ch6_pub.publish(Bool(data=msg.chan6_raw > 1500))
 
     def request_fence_enable(self):
         if self.connected and self.vehicle:
@@ -265,69 +297,32 @@ class LandingTargetBridge(Node):
                 self.vehicle.mav.param_request_read_send(
                     self.vehicle.target_system,
                     self.vehicle.target_component,
-                    b'FENCE_ENABLE',
-                    -1
+                    b'FENCE_ENABLE', -1
                 )
-                self.get_logger().debug("Requested FENCE_ENABLE param")
             except Exception as e:
                 self.get_logger().warn(f"Failed to request FENCE_ENABLE: {e}")
 
-
     def handle_battery_status(self, msg):
-        voltages = msg.voltages
-        voltage = voltages[0] / 1000.0 if voltages[0] != 0xFFFF else 0.0
+        voltage = msg.voltages[0] / 1000.0 if msg.voltages[0] != 0xFFFF else 0.0
         current = msg.current_battery / 100.0 if msg.current_battery != -1 else 0.0
-
         self.battery_voltage_pub.publish(Float32(data=voltage))
         self.battery_current_pub.publish(Float32(data=current))
-
-    def identify_active_compass(self):
-        # Hardcoded DEV_IDs
-        EXTERNAL_UAVCAN_DEV_ID = 97539.0
-        INTERNAL_SPI_DEV_ID = 590114.0
-
-        dev_ids = [
-            int(self.compass_info.get('COMPASS_DEV_ID', 0)),
-            int(self.compass_info.get('COMPASS_DEV_ID2', 0)),
-            int(self.compass_info.get('COMPASS_DEV_ID3', 0))
-        ]
-
-        uses = [
-            int(self.compass_info.get('COMPASS_USE', 0)),
-            int(self.compass_info.get('COMPASS_USE2', 0)),
-            int(self.compass_info.get('COMPASS_USE3', 0))
-        ]
-
-        primary_idx = int(self.compass_info.get('COMPASS_PRIMARY', 0))
-        primary_dev_id = dev_ids[primary_idx]
-
-        if primary_dev_id == EXTERNAL_UAVCAN_DEV_ID:
-            compass_name = "External (UAVCAN)"
-        elif primary_dev_id == INTERNAL_SPI_DEV_ID:
-            compass_name = "Internal (SPI)"
-        else:
-            compass_name = f"Unknown Compass (DEV_ID={primary_dev_id})"
-
-        self.get_logger().info(f"Active compass: {compass_name}")
-        self.compass_name_pub.publish(String(data=compass_name))
 
     def handle_statustext(self, msg):
         text = msg.text.lower()
         if "external compass" in text:
             self.external_compass_pub.publish(String(data=text))
 
-
     def handle_gps(self, msg):
-        lat = msg.lat / 1e7 
+        lat = msg.lat / 1e7
         lon = msg.lon / 1e7
         alt = msg.alt / 1000.0
-        # self.get_logger().info(f"GPS Location: Lat={lat}, Lon={lon}, Alt={alt}m")
 
         if self.home_lat is None:
             self.home_lat = lat
             self.home_lon = lon
 
-        # Convert to local ENU
+        # ---- local ENU ----
         R = 6378137.0
         dlat = math.radians(lat - self.home_lat)
         dlon = math.radians(lon - self.home_lon)
@@ -341,13 +336,8 @@ class LandingTargetBridge(Node):
         pose.pose.position.x = x
         pose.pose.position.y = y
         pose.pose.position.z = z
-
-        # If we already have orientation from ATTITUDE, attach it
-        if self.last_orientation:
-            pose.pose.orientation = self.last_orientation
-        else:
-            pose.pose.orientation.w = 1.0
-
+        pose.pose.orientation = self.last_orientation if self.last_orientation else \
+                                self.create_quaternion_msg(1.0, 0.0, 0.0, 0.0)
         self.pose_pub.publish(pose)
 
         t = TransformStamped()
@@ -357,43 +347,35 @@ class LandingTargetBridge(Node):
         t.transform.translation.x = x
         t.transform.translation.y = y
         t.transform.translation.z = getattr(self, 'current_altitude', 0.0)
-        if self.last_orientation:
-            t.transform.rotation = self.last_orientation
-        else:
-            t.transform.rotation.w = 1.0
+        t.transform.rotation = self.last_orientation if self.last_orientation else \
+                               self.create_quaternion_msg(1.0, 0.0, 0.0, 0.0)
         self.tf_broadcaster.sendTransform(t)
 
+    def create_quaternion_msg(self, w, x=0.0, y=0.0, z=0.0):
+        from geometry_msgs.msg import Quaternion
+        q = Quaternion()
+        q.w, q.x, q.y, q.z = w, x, y, z
+        return q
 
     def handle_attitude(self, msg):
         roll, pitch, yaw = -msg.roll, -msg.pitch, -msg.yaw + math.pi/2
-
-
         q = quaternion_from_euler(roll, pitch, yaw)
 
         imu = Imu()
         imu.header.stamp = self.get_clock().now().to_msg()
         imu.header.frame_id = 'base_link'
-        imu.orientation.x = q[0]
-        imu.orientation.y = q[1]
-        imu.orientation.z = q[2]
-        imu.orientation.w = q[3]
-
+        imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w = q
         imu.angular_velocity.x = msg.rollspeed
         imu.angular_velocity.y = msg.pitchspeed
         imu.angular_velocity.z = msg.yawspeed
 
-        # Add last known linear acceleration (approx from VFR_HUD)
         if self.last_vfr:
             imu.linear_acceleration.x = self.last_vfr['airspeed']
             imu.linear_acceleration.z = -self.last_vfr['climb']
 
         self.imu_pub.publish(imu)
 
-        # Save orientation for use in pose
-        from geometry_msgs.msg import Quaternion
-        q_msg = Quaternion()
-        q_msg.x, q_msg.y, q_msg.z, q_msg.w = q[0], q[1], q[2], q[3]
-        self.last_orientation = q_msg
+        self.last_orientation = self.create_quaternion_msg(q[3], q[0], q[1], q[2])
 
     def handle_vfr_hud(self, msg):
         self.last_vfr = {
@@ -404,102 +386,185 @@ class LandingTargetBridge(Node):
             'alt': msg.alt,
             'climb': msg.climb
         }
-        heading = msg.heading
-        heading_msg = Float32()
-        heading_msg.data = float(heading)
-        self.heading_pub.publish(heading_msg)
+        self.heading_pub.publish(Float32(data=float(msg.heading)))
 
     def handle_param_value(self, msg):
-        try:
-            param_id = msg.param_id.rstrip('\x00')
-        except Exception as e:
-            self.get_logger().warn(f"Failed to decode param_id: {e}")
-            return
-        
+        param_id = msg.param_id.rstrip('\x00')
         param_value = msg.param_value
+
         if param_id.startswith("COMPASS_"):
             self.compass_info[param_id] = param_value
-            self.get_logger().info(f"Compass param: {param_id} = {param_value}")
 
-        # Wait until all required compass params are available
-        required_params = [
+        required = [
             'COMPASS_DEV_ID', 'COMPASS_DEV_ID2', 'COMPASS_DEV_ID3',
             'COMPASS_USE', 'COMPASS_USE2', 'COMPASS_USE3',
             'COMPASS_PRIMARY'
         ]
-        if all(p in self.compass_info for p in required_params):
-            self.display_compass_usage()
+        if all(p in self.compass_info for p in required):
             self.identify_active_compass()
 
         if param_id == 'FENCE_ENABLE':
-            fence_enabled = int(param_value) == 1
-            # self.get_logger().info(f"[PARAM] FENCE_ENABLE = {fence_enabled}")
-            self.fence_enabled_pub.publish(Bool(data=fence_enabled))
-
+            self.fence_enabled_pub.publish(Bool(data=int(param_value) == 1))
         if param_id == 'COMPASS_EXTERNAL':
-            is_external = bool(int(param_value))
-            self.get_logger().info(f"[PARAM] COMPASS_EXTERNAL = {is_external}")
-            self.compass_use_pub.publish(Bool(data=is_external))
+            self.compass_use_pub.publish(Bool(data=bool(int(param_value))))
+
+    def identify_active_compass(self):
+        EXTERNAL_UAVCAN = 97539.0
+        INTERNAL_SPI = 590114.0
+        dev_ids = [int(self.compass_info.get(f'COMPASS_DEV_ID{i}', 0)) for i in (1, 2, 3)]
+        primary_idx = int(self.compass_info.get('COMPASS_PRIMARY', 0))
+        primary_id = dev_ids[primary_idx]
+
+        if primary_id == EXTERNAL_UAVCAN:
+            name = "External (UAVCAN)"
+        elif primary_id == INTERNAL_SPI:
+            name = "Internal (SPI)"
+        else:
+            name = f"Unknown (DEV_ID={primary_id})"
+
+        self.compass_name_pub.publish(String(data=name))
 
     def handle_gps_raw(self, msg):
-        fix_type = msg.fix_type
-        satellites = msg.satellites_visible
-        self.gps_satellites_pub.publish(Int32(data=satellites))
-        fix_description = {
-            0: "No GPS",
-            1: "No Fix",
-            2: "2D Fix",
-            3: "3D Fix",
-            4: "DGPS",
-            5: "RTK Float",
-            6: "RTK Fixed"
-        }.get(fix_type, f"Unknown ({fix_type})")
-        self.gps_status_pub.publish(String(data=fix_description))
+        self.gps_satellites_pub.publish(Int32(data=msg.satellites_visible))
+        fix_desc = {
+            0: "No GPS", 1: "No Fix", 2: "2D Fix", 3: "3D Fix",
+            4: "DGPS", 5: "RTK Float", 6: "RTK Fixed"
+        }.get(msg.fix_type, f"Unknown ({msg.fix_type})")
+        self.gps_status_pub.publish(String(data=fix_desc))
 
-        # Populate NavSatFix
-        gps_msg = NavSatFix()
-
-        gps_msg.status.service = NavSatStatus.SERVICE_GPS
-        gps_msg.status.status = NavSatStatus.STATUS_NO_FIX
-        if fix_type >= 2:
-            gps_msg.status.status = NavSatStatus.STATUS_FIX
-        if fix_type >= 4:
-            gps_msg.status.status = NavSatStatus.STATUS_SBAS_FIX
-        if fix_type >= 5:
-            gps_msg.status.status = NavSatStatus.STATUS_GBAS_FIX
-
-
+    # ==================================================================
+    # Landing target pose -> MAVLink
+    # ==================================================================
     def pose_callback(self, msg: PoseStamped):
         if not self.connected:
             self.get_logger().warn("Not connected to MAVLink. Skipping pose.")
             return
-        
+
         x_cam = msg.pose.position.x
         y_cam = msg.pose.position.y
         z_cam = msg.pose.position.z
-
         if z_cam <= 0:
-            self.get_logger().warn("Invalid Z (<= 0). Skipping.")
+            self.get_logger().warn("Invalid Z (<=0). Skipping.")
             return
-        
+
         angle_x = math.atan2(x_cam, z_cam)
         angle_y = math.atan2(y_cam, z_cam)
         distance = math.sqrt(x_cam**2 + y_cam**2 + z_cam**2)
 
         try:
-            msg = self.vehicle.mav.landing_target_encode(
+            mav_msg = self.vehicle.mav.landing_target_encode(
                 0, 0, mavutil.mavlink.MAV_FRAME_BODY_NED,
                 angle_x, angle_y, distance, 0.0, 0.0
             )
-            self.vehicle.mav.send(msg)
+            self.vehicle.mav.send(mav_msg)
         except Exception as e:
             self.get_logger().error(f"Failed to send LANDING_TARGET: {e}")
-        
-        # self.get_logger().info(f"Received landing target pose: x={x:.2f}, y={y:.2f}, z={z:.2f}")
 
+    # ==================================================================
+    # Optical Flow (integrated)
+    # ==================================================================
+    def camera_info_callback(self, msg: CameraInfo):
+        if self.focal_length_x is None:
+            self.focal_length_x = msg.k[0]      # fx
+            self.focal_length_y = msg.k[4]      # fy
+            self.cx = msg.k[2]
+            self.cy = msg.k[5]
+            self.get_logger().info(
+                f"Camera intrinsics: fx={self.focal_length_x}, fy={self.focal_length_y}, "
+                f"cx={self.cx}, cy={self.cy}"
+            )
+
+    def image_callback(self, msg: Image):
+        if not self.connected:
+            return
+
+        # Convert to mono8
+        gray = self.bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
+
+        if self.prev_gray is None or self.focal_length_x is None:
+            self.prev_gray = gray
+            self.prev_time = time.time()
+            return
+
+        # ---- distance (from rangefinder) --------------------------------
+        with self.distance_lock:
+            dist = self.latest_distance
+        if dist <= 0.0:
+            self.prev_gray = gray
+            self.prev_time = time.time()
+            return
+
+        # ---- time delta -------------------------------------------------
+        now = time.time()
+        dt = now - self.prev_time
+        if dt <= 0.0:
+            dt = 0.033          # fallback ~30 Hz
+        self.prev_time = now
+
+        # ---- Farneback optical flow --------------------------------------
+        flow = cv2.calcOpticalFlowFarneback(
+            self.prev_gray, gray, None,
+            pyr_scale=0.5, levels=3, winsize=21,
+            iterations=5, poly_n=7, poly_sigma=1.5, flags=0
+        )
+
+        flow_x_px = np.mean(flow[..., 0])
+        flow_y_px = np.mean(flow[..., 1])
+
+        # ---- pixel → rad -------------------------------------------------
+        flow_x_rad = flow_x_px / self.focal_length_x
+        flow_y_rad = flow_y_px / self.focal_length_y
+
+        # ---- angular rates (rad/s) ---------------------------------------
+        flow_rate_x = flow_x_rad / dt
+        flow_rate_y = flow_y_rad / dt
+
+        # ---- compensated linear flow (m/s) -------------------------------
+        flow_comp_m_x = np.tan(flow_x_rad) * dist / dt
+        flow_comp_m_y = np.tan(flow_y_rad) * dist / dt
+
+        # ---- quality heuristic -------------------------------------------
+        flow_mag_px = np.sqrt(flow_x_px**2 + flow_y_px**2)
+        quality = int(np.clip(flow_mag_px * 50, 0, 255))
+
+        # ---- send MAVLink OPTICAL_FLOW -----------------------------------
+        flow_x_mrad_s = int(flow_rate_x)   # millirad/s
+        flow_y_mrad_s = int(flow_rate_y)
+
+        try:
+            self.vehicle.mav.optical_flow_send(
+                time_usec=int(now * 1e6),
+                sensor_id=0,
+                flow_x=flow_x_mrad_s,
+                flow_y=flow_y_mrad_s,
+                flow_comp_m_x=float(flow_comp_m_x),
+                flow_comp_m_y=float(flow_comp_m_y),
+                quality=quality,
+                ground_distance=float(dist),
+                flow_rate_x=float(flow_rate_x),
+                flow_rate_y=float(flow_rate_y)
+            )
+        except Exception as e:
+            self.get_logger().warn(f"Failed to send OPTICAL_FLOW: {e}")
+
+        self.get_logger().info(
+            f"OF: px=({flow_x_px:.2f},{flow_y_px:.2f}) rad=({flow_x_rad:.6f},{flow_y_rad:.6f}) "
+            f"mrad/s=({flow_x_mrad_s},{flow_y_mrad_s}) comp=({flow_comp_m_x:.3f},{flow_comp_m_y:.3f})m/s "
+            f"dist={dist:.2f}m qual={quality}"
+        )
+
+        # ---- update previous frame ---------------------------------------
+        self.prev_gray = gray
+
+    # ==================================================================
+    # Periodic tasks (currently empty)
+    # ==================================================================
     def periodic_tasks(self):
         pass
 
+    # ==================================================================
+    # Clean shutdown
+    # ==================================================================
     def destroy_node(self):
         self.stop_thread = True
         if self.mavlink_thread.is_alive():
@@ -507,13 +572,16 @@ class LandingTargetBridge(Node):
         super().destroy_node()
 
 
+# ----------------------------------------------------------------------
+# Main entry point
+# ----------------------------------------------------------------------
 def main(args=None):
     rclpy.init(args=args)
     node = LandingTargetBridge()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info("Shutting down LandingTargetBridge node.")
+        node.get_logger().info("Shutting down node.")
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -521,4 +589,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
