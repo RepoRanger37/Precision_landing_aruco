@@ -547,11 +547,11 @@ class LandingTargetBridge(Node):
         except Exception as e:
             self.get_logger().warn(f"Failed to send OPTICAL_FLOW: {e}")
 
-        self.get_logger().info(
-            f"OF: px=({flow_x_px:.2f},{flow_y_px:.2f}) rad=({flow_x_rad:.6f},{flow_y_rad:.6f}) "
-            f"mrad/s=({flow_x_mrad_s},{flow_y_mrad_s}) comp=({flow_comp_m_x:.3f},{flow_comp_m_y:.3f})m/s "
-            f"dist={dist:.2f}m qual={quality}"
-        )
+        #self.get_logger().info(
+        #    f"OF: px=({flow_x_px:.2f},{flow_y_px:.2f}) rad=({flow_x_rad:.6f},{flow_y_rad:.6f}) "
+        #    f"mrad/s=({flow_x_mrad_s},{flow_y_mrad_s}) comp=({flow_comp_m_x:.3f},{flow_comp_m_y:.3f})m/s "
+        #    f"dist={dist:.2f}m qual={quality}"
+        #)
 
         # ---- update previous frame ---------------------------------------
         self.prev_gray = gray
